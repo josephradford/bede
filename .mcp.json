@@ -2,11 +2,11 @@
   "mcpServers": {
     "google-workspace": {
       "type": "http",
-      "url": "http://workspace-mcp:8000/mcp"
+      "url": "http://localhost:8003/mcp"
     },
     "personal-data": {
       "type": "http",
-      "url": "http://data-mcp:8000/mcp"
+      "url": "http://localhost:8002/mcp"
     }
   }
 }

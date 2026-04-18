@@ -263,4 +263,6 @@ async def get_weather() -> dict:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)
+    import os
+    port = int(os.environ.get("DATA_MCP_PORT", "8002"))
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=port)

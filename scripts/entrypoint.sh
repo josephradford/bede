@@ -29,4 +29,4 @@ if [ -n "${VAULT_REPO}" ]; then
 fi
 
 echo "[entrypoint] Starting supervisord..."
-exec supervisord -c /app/supervisord.conf
+exec uv run supervisord -c /app/supervisord.conf

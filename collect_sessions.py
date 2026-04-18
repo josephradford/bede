@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 PROJECTS_DIR = Path(os.path.expanduser("~/.claude/projects"))
 CLAUDE_BIN = "claude"
-INGEST_URL = os.environ.get("INGEST_URL", "http://data-ingest:8000/ingest/vault")
+INGEST_URL = os.environ.get("INGEST_URL", "http://localhost:8001/ingest/vault")
 INGEST_TOKEN = os.environ.get("INGEST_WRITE_TOKEN", "")
 
 STRIP_PREFIXES = [

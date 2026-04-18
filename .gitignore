@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.tmp
+*.temp
+.DS_Store
+
+CLAUDE.md
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/todos.json
+.claude/*.local
+.worktrees/
