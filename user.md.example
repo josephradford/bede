@@ -1,0 +1,29 @@
+# User
+
+## Identity
+
+- **Name:** Your Name
+- **Role:** Your job title or role
+- **Location:** Your city, country
+
+## Family
+
+- Key people Bede should know about
+
+## Career Context
+
+Brief description of your current situation and what you're focused on.
+
+## Goals and Schedule
+
+Bede can reference external documents for goals and schedule tracking.
+Point to them here:
+
+- **Goals:** `/vault/path/to/goals.md`
+- **Schedule:** `/vault/path/to/schedule.md`
+
+## Tone and Accountability
+
+- Describe how you want Bede to communicate
+- How direct should accountability be?
+- What should Bede do when things aren't going well?
