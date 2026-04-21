@@ -222,16 +222,16 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def handle_runtasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_scout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ALLOWED_USER_ID:
         return
     tasks = _parse_tasks()
-    if not tasks:
-        await update.message.reply_text("No tasks found in scheduled-tasks.md.")
+    task = next((t for t in tasks if t.get("name") == "Sunday Scout"), None)
+    if not task:
+        await update.message.reply_text("Sunday Scout task not found in scheduled-tasks.md.")
         return
-    names = ", ".join(t.get("name", "?") for t in tasks)
-    await update.message.reply_text(f"Running {len(tasks)} task(s): {names}")
-    await asyncio.gather(*[_run_task(t) for t in tasks])
+    await update.message.reply_text("Running Sunday Scout...")
+    await _run_task(task)
 
 
 async def handle_morning(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -263,9 +263,9 @@ async def post_init(app):
     commands = [
         BotCommand("start", "Start a conversation"),
         BotCommand("reset", "Clear session and start fresh"),
-        BotCommand("runtasks", "Fire all scheduled tasks immediately"),
         BotCommand("morning", "Run the Morning Briefing"),
         BotCommand("evening", "Run the Evening Reflection"),
+        BotCommand("scout", "Run the Sunday Scout price checker"),
     ]
     await app.bot.set_my_commands(commands)
     await app.bot.set_my_commands(commands, scope=BotCommandScopeAllPrivateChats())
@@ -287,9 +287,9 @@ def main():
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).post_shutdown(post_shutdown).build()
     app.add_handler(CommandHandler("start", handle_start))
     app.add_handler(CommandHandler("reset", handle_reset))
-    app.add_handler(CommandHandler("runtasks", handle_runtasks))
     app.add_handler(CommandHandler("morning", handle_morning))
     app.add_handler(CommandHandler("evening", handle_evening))
+    app.add_handler(CommandHandler("scout", handle_scout))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     log.info("Bede is running.")
     app.run_polling(drop_pending_updates=True)

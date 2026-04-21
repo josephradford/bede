@@ -7,6 +7,10 @@
     "personal-data": {
       "type": "http",
       "url": "http://localhost:8002/mcp"
+    },
+    "browser": {
+      "type": "http",
+      "url": "http://localhost:8004/mcp"
     }
   }
 }
