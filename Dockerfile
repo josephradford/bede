@@ -4,6 +4,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl ca-certificates openssh-client supervisor \
     && rm -rf /var/lib/apt/lists/*
 
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
+
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    npm install -g @playwright/mcp@latest && \
+    npx playwright install chromium --with-deps && \
+    chmod -R 755 /opt/playwright-browsers && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN curl -fsSL https://claude.ai/install.sh | bash && \
     cp /root/.local/bin/claude /usr/local/bin/claude
 
@@ -23,6 +32,6 @@ RUN chmod +x scripts/entrypoint.sh scripts/briefing.sh \
 
 USER bede
 
-EXPOSE 8001 8002 8003
+EXPOSE 8001 8002 8003 8004
 
 ENTRYPOINT ["scripts/entrypoint.sh"]
