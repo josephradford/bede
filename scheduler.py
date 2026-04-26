@@ -102,9 +102,45 @@ async def _send(text: str):
         log.error("Failed to send scheduled message: %s", e)
 
 
+async def _keep_typing():
+    """Send typing action every 4s so it doesn't expire while a task runs."""
+    while True:
+        try:
+            await _bot.send_chat_action(chat_id=_chat_id, action="typing")
+        except Exception:
+            pass
+        await asyncio.sleep(4)
+
+
 DEFAULT_TASK_TIMEOUT = 300  # seconds
 
 _running_tasks: set[str] = set()
+
+_task_env = None
+
+
+def _get_task_env() -> dict:
+    global _task_env
+    if _task_env is None:
+        _task_env = {k: v for k, v in os.environ.items()
+                     if k not in ("TELEGRAM_BOT_TOKEN", "ALLOWED_USER_ID")}
+    return _task_env
+
+
+def _extract_result(stdout: str) -> str:
+    """Extract the result text from claude --output-format json output."""
+    result_text = ""
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+            if obj.get("type") == "result":
+                result_text = obj.get("result", "").strip()
+        except json.JSONDecodeError:
+            continue
+    return result_text
 
 
 async def _run_task(task: dict):
@@ -117,13 +153,20 @@ async def _run_task(task: dict):
         return
 
     _running_tasks.add(name)
+    typing_task = asyncio.create_task(_keep_typing())
     try:
         await _run_task_inner(task, name)
     finally:
+        typing_task.cancel()
         _running_tasks.discard(name)
 
 
 async def _run_task_inner(task: dict, name: str):
+    steps = task.get("steps")
+    if steps:
+        await _run_steps_task(task, name, steps)
+        return
+
     prompt = task.get("prompt", "")
     timeout = int(task.get("timeout", DEFAULT_TASK_TIMEOUT))
     model = task.get("model", CLAUDE_MODEL)
@@ -137,16 +180,7 @@ async def _run_task_inner(task: dict, name: str):
     now_date_str = now.strftime("%A, %d %B %Y")
     prompt = f"Today is {now_date_str}.\n\n{prompt}"
 
-    # Calculate next run time
-    next_str = ""
-    if cron:
-        try:
-            trigger = CronTrigger.from_crontab(cron, timezone=tz)
-            next_run = trigger.get_next_fire_time(None, now)
-            if next_run:
-                next_str = next_run.strftime("%a %H:%M")
-        except Exception as e:
-            log.warning("Could not calculate next run time for '%s': %s", name, e)
+    next_str = _next_run_str(cron, tz, now)
 
     header = f"📅 *{name}* ({now_str})"
     if next_str:
@@ -160,17 +194,12 @@ async def _run_task_inner(task: dict, name: str):
         "--output-format", "json",
     ]
 
-    # Strip Telegram env vars so the Claude subprocess can't send messages
-    # directly — _run_task handles all Telegram delivery.
-    task_env = {k: v for k, v in os.environ.items()
-                if k not in ("TELEGRAM_BOT_TOKEN", "ALLOWED_USER_ID")}
-
     try:
         proc = await asyncio.to_thread(
             subprocess.run, cmd,
             capture_output=True, text=True,
             stdin=subprocess.DEVNULL, cwd=CLAUDE_WORKDIR,
-            timeout=timeout, env=task_env,
+            timeout=timeout, env=_get_task_env(),
         )
     except subprocess.TimeoutExpired:
         mins = timeout // 60
@@ -180,17 +209,7 @@ async def _run_task_inner(task: dict, name: str):
         await _send(f"📅 *{name}*\n⚠️ Error: {e}")
         return
 
-    result_text = ""
-    for line in proc.stdout.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            obj = json.loads(line)
-            if obj.get("type") == "result":
-                result_text = obj.get("result", "").strip()
-        except json.JSONDecodeError:
-            continue
+    result_text = _extract_result(proc.stdout)
 
     if not result_text:
         if proc.returncode != 0:
@@ -201,6 +220,97 @@ async def _run_task_inner(task: dict, name: str):
     full = header + result_text
     for chunk in [full[i:i + 4096] for i in range(0, len(full), 4096)]:
         await _send(chunk)
+
+
+def _next_run_str(cron: str, tz, now) -> str:
+    if not cron:
+        return ""
+    try:
+        trigger = CronTrigger.from_crontab(cron, timezone=tz)
+        next_run = trigger.get_next_fire_time(None, now)
+        if next_run:
+            return next_run.strftime("%a %H:%M")
+    except Exception as e:
+        log.warning("Could not calculate next run time: %s", e)
+    return ""
+
+
+async def _run_steps_task(task: dict, name: str, steps: list[dict]):
+    """Run a multi-step task, sending each step's result as a separate message."""
+    timeout = int(task.get("timeout", DEFAULT_TASK_TIMEOUT))
+    model = task.get("model", CLAUDE_MODEL)
+    cron = task.get("schedule", "")
+    preamble = task.get("preamble", "")
+
+    tz = ZoneInfo(TIMEZONE)
+    now = datetime.now(tz)
+    now_str = now.strftime("%H:%M")
+    now_date_str = now.strftime("%A, %d %B %Y")
+    next_str = _next_run_str(cron, tz, now)
+
+    header = f"📅 *{name}* ({now_str})"
+    if next_str:
+        header += f"\n↻ Next: {next_str}"
+    step_names = [s.get("name", f"Step {i+1}") for i, s in enumerate(steps) if not s.get("silent")]
+    header += f"\n{len(step_names)} sections: {', '.join(step_names)}"
+    await _send(header)
+
+    step_timeout = max(timeout // len(steps), 120)
+
+    for i, step in enumerate(steps, 1):
+        step_name = step.get("name", f"Step {i}")
+        step_prompt = step.get("prompt", "")
+        silent = step.get("silent", False)
+        step_model = step.get("model", model)
+
+        if not step_prompt:
+            continue
+
+        full_prompt = f"Today is {now_date_str}.\n\n"
+        if preamble:
+            full_prompt += preamble + "\n\n"
+        full_prompt += step_prompt
+
+        cmd = [
+            "claude", "-p", full_prompt,
+            "--model", step_model,
+            "--dangerously-skip-permissions",
+            "--output-format", "json",
+        ]
+
+        log.info("Running step %d/%d '%s' for task '%s'", i, len(steps), step_name, name)
+
+        try:
+            proc = await asyncio.to_thread(
+                subprocess.run, cmd,
+                capture_output=True, text=True,
+                stdin=subprocess.DEVNULL, cwd=CLAUDE_WORKDIR,
+                timeout=step_timeout, env=_get_task_env(),
+            )
+        except subprocess.TimeoutExpired:
+            if not silent:
+                await _send(f"⚠️ *{step_name}* — timed out")
+            continue
+        except Exception as e:
+            if not silent:
+                await _send(f"⚠️ *{step_name}* — error: {e}")
+            continue
+
+        result_text = _extract_result(proc.stdout)
+
+        if not result_text:
+            if proc.returncode != 0:
+                result_text = f"⚠️ Failed (exit {proc.returncode}):\n{(proc.stderr or proc.stdout or 'No output.')[:500]}"
+            else:
+                result_text = (proc.stdout or proc.stderr or "No output.").strip()
+
+        if not silent:
+            for chunk in [result_text[j:j + 4096] for j in range(0, len(result_text), 4096)]:
+                await _send(chunk)
+        else:
+            log.info("Silent step '%s' completed.", step_name)
+
+    await _send(f"✅ *{name}* complete.")
 
 
 async def reload(scheduler: AsyncIOScheduler):
