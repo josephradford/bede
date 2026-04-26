@@ -104,10 +104,26 @@ async def _send(text: str):
 
 DEFAULT_TASK_TIMEOUT = 300  # seconds
 
+_running_tasks: set[str] = set()
+
 
 async def _run_task(task: dict):
     """Run a single scheduled task and send the result via Telegram."""
     name = task.get("name", "Scheduled Task")
+
+    if name in _running_tasks:
+        log.warning("Task '%s' is already running — skipping.", name)
+        await _send(f"⚠️ *{name}* is already running.")
+        return
+
+    _running_tasks.add(name)
+    try:
+        await _run_task_inner(task, name)
+    finally:
+        _running_tasks.discard(name)
+
+
+async def _run_task_inner(task: dict, name: str):
     prompt = task.get("prompt", "")
     timeout = int(task.get("timeout", DEFAULT_TASK_TIMEOUT))
     model = task.get("model", CLAUDE_MODEL)
