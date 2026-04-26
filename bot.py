@@ -258,6 +258,18 @@ async def handle_evening(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _run_task(task)
 
 
+async def handle_datacheck(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ALLOWED_USER_ID:
+        return
+    tasks = _parse_tasks()
+    task = next((t for t in tasks if t.get("name") == "Evening Data Check"), None)
+    if not task:
+        await update.message.reply_text("Evening Data Check task not found in scheduled-tasks.md.")
+        return
+    await update.message.reply_text("Running Evening Data Check...")
+    await _run_task(task)
+
+
 async def post_init(app):
     from telegram import BotCommand, BotCommandScopeAllPrivateChats
     commands = [
@@ -266,6 +278,7 @@ async def post_init(app):
         BotCommand("morning", "Run the Morning Briefing"),
         BotCommand("evening", "Run the Evening Reflection"),
         BotCommand("scout", "Run the Sunday Scout price checker"),
+        BotCommand("datacheck", "Run the Evening Data Check"),
     ]
     await app.bot.set_my_commands(commands)
     await app.bot.set_my_commands(commands, scope=BotCommandScopeAllPrivateChats())
@@ -290,6 +303,7 @@ def main():
     app.add_handler(CommandHandler("morning", handle_morning))
     app.add_handler(CommandHandler("evening", handle_evening))
     app.add_handler(CommandHandler("scout", handle_scout))
+    app.add_handler(CommandHandler("datacheck", handle_datacheck))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     log.info("Bede is running.")
     app.run_polling(drop_pending_updates=True)
