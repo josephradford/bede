@@ -231,7 +231,9 @@ def setup_scheduler(bot, chat_id: int) -> AsyncIOScheduler:
 
     tz = ZoneInfo(TIMEZONE)
 
-    scheduler = AsyncIOScheduler()
+    scheduler = AsyncIOScheduler(
+        job_defaults={"misfire_grace_time": 300, "coalesce": True}
+    )
     scheduler.add_job(
         reload,
         "interval",

@@ -84,4 +84,8 @@ data are available via `get_wellbeing(date)`.
 
 ## Google Account
 
+**IMPORTANT:** Always use this email for ALL Google workspace-mcp tool calls
+(get_events, list_calendars, send_email, search_emails, list_tasks, etc.).
+Never infer or guess a different email from the user's name.
+
 - Email: your-google-account@gmail.com
