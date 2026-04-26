@@ -160,12 +160,17 @@ async def _run_task_inner(task: dict, name: str):
         "--output-format", "json",
     ]
 
+    # Strip Telegram env vars so the Claude subprocess can't send messages
+    # directly — _run_task handles all Telegram delivery.
+    task_env = {k: v for k, v in os.environ.items()
+                if k not in ("TELEGRAM_BOT_TOKEN", "ALLOWED_USER_ID")}
+
     try:
         proc = await asyncio.to_thread(
             subprocess.run, cmd,
             capture_output=True, text=True,
             stdin=subprocess.DEVNULL, cwd=CLAUDE_WORKDIR,
-            timeout=timeout,
+            timeout=timeout, env=task_env,
         )
     except subprocess.TimeoutExpired:
         mins = timeout // 60
