@@ -89,3 +89,10 @@ data are available via `get_wellbeing(date)`.
 Never infer or guess a different email from the user's name.
 
 - Email: your-google-account@gmail.com
+
+### Calendar access
+
+When checking calendar events, always check ALL calendars, not just the primary:
+1. Call `list_calendars` to get every calendar shared with this account
+2. Call `get_events` for each calendar ID returned
+3. Merge the results — include the calendar name so events are distinguishable
