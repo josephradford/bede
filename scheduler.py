@@ -235,12 +235,69 @@ def _next_run_str(cron: str, tz, now) -> str:
     return ""
 
 
+_PARALLEL_NOTE = (
+    "\n\nIMPORTANT: You are running in parallel with other scout categories. "
+    "Do NOT write to or modify /vault/Bede/price-checker-memory.md. "
+    "Instead, include any dead URLs, price changes, or stock transitions "
+    "in your response text so they can be collected afterward."
+)
+
+
+async def _run_single_step(step: dict, task_name: str, model: str, preamble: str,
+                           now_date_str: str, step_timeout: int) -> tuple[str, str, bool]:
+    """Run one step of a multi-step task. Returns (step_name, result_text, silent)."""
+    step_name = step.get("name", "Step")
+    step_prompt = step.get("prompt", "")
+    silent = step.get("silent", False)
+    step_model = step.get("model", model)
+
+    if not step_prompt:
+        return step_name, "", silent
+
+    full_prompt = f"Today is {now_date_str}.\n\n"
+    if preamble:
+        full_prompt += preamble + "\n\n"
+    full_prompt += step_prompt
+
+    cmd = [
+        "claude", "-p", full_prompt,
+        "--model", step_model,
+        "--dangerously-skip-permissions",
+        "--output-format", "json",
+    ]
+
+    log.info("Running step '%s' for task '%s'", step_name, task_name)
+
+    try:
+        proc = await asyncio.to_thread(
+            subprocess.run, cmd,
+            capture_output=True, text=True,
+            stdin=subprocess.DEVNULL, cwd=CLAUDE_WORKDIR,
+            timeout=step_timeout, env=_get_task_env(),
+        )
+    except subprocess.TimeoutExpired:
+        return step_name, f"⚠️ *{step_name}* — timed out", silent
+    except Exception as e:
+        return step_name, f"⚠️ *{step_name}* — error: {e}", silent
+
+    result_text = _extract_result(proc.stdout)
+
+    if not result_text:
+        if proc.returncode != 0:
+            result_text = f"⚠️ Failed (exit {proc.returncode}):\n{(proc.stderr or proc.stdout or 'No output.')[:500]}"
+        else:
+            result_text = (proc.stdout or proc.stderr or "No output.").strip()
+
+    return step_name, result_text, silent
+
+
 async def _run_steps_task(task: dict, name: str, steps: list[dict]):
-    """Run a multi-step task, sending each step's result as a separate message."""
+    """Run a multi-step task, optionally parallelizing non-silent steps."""
     timeout = int(task.get("timeout", DEFAULT_TASK_TIMEOUT))
     model = task.get("model", CLAUDE_MODEL)
     cron = task.get("schedule", "")
     preamble = task.get("preamble", "")
+    parallel = task.get("parallel", False)
 
     tz = ZoneInfo(TIMEZONE)
     now = datetime.now(tz)
@@ -253,64 +310,72 @@ async def _run_steps_task(task: dict, name: str, steps: list[dict]):
         header += f"\n↻ Next: {next_str}"
     step_names = [s.get("name", f"Step {i+1}") for i, s in enumerate(steps) if not s.get("silent")]
     header += f"\n{len(step_names)} sections: {', '.join(step_names)}"
+    if parallel:
+        header += " ⚡"
     await _send(header)
 
-    step_timeout = max(timeout // len(steps), 120)
-
-    for i, step in enumerate(steps, 1):
-        step_name = step.get("name", f"Step {i}")
-        step_prompt = step.get("prompt", "")
-        silent = step.get("silent", False)
-        step_model = step.get("model", model)
-
-        if not step_prompt:
-            continue
-
-        full_prompt = f"Today is {now_date_str}.\n\n"
-        if preamble:
-            full_prompt += preamble + "\n\n"
-        full_prompt += step_prompt
-
-        cmd = [
-            "claude", "-p", full_prompt,
-            "--model", step_model,
-            "--dangerously-skip-permissions",
-            "--output-format", "json",
-        ]
-
-        log.info("Running step %d/%d '%s' for task '%s'", i, len(steps), step_name, name)
-
-        try:
-            proc = await asyncio.to_thread(
-                subprocess.run, cmd,
-                capture_output=True, text=True,
-                stdin=subprocess.DEVNULL, cwd=CLAUDE_WORKDIR,
-                timeout=step_timeout, env=_get_task_env(),
+    if parallel:
+        await _run_steps_parallel(steps, name, timeout, model, preamble, now_date_str)
+    else:
+        step_timeout = max(timeout // len(steps), 120)
+        for step in steps:
+            step_name, result_text, silent = await _run_single_step(
+                step, name, model, preamble, now_date_str, step_timeout,
             )
-        except subprocess.TimeoutExpired:
-            if not silent:
-                await _send(f"⚠️ *{step_name}* — timed out")
-            continue
-        except Exception as e:
-            if not silent:
-                await _send(f"⚠️ *{step_name}* — error: {e}")
-            continue
-
-        result_text = _extract_result(proc.stdout)
-
-        if not result_text:
-            if proc.returncode != 0:
-                result_text = f"⚠️ Failed (exit {proc.returncode}):\n{(proc.stderr or proc.stdout or 'No output.')[:500]}"
-            else:
-                result_text = (proc.stdout or proc.stderr or "No output.").strip()
-
-        if not silent:
-            for chunk in [result_text[j:j + 4096] for j in range(0, len(result_text), 4096)]:
-                await _send(chunk)
-        else:
-            log.info("Silent step '%s' completed.", step_name)
+            if not silent and result_text:
+                for chunk in [result_text[j:j + 4096] for j in range(0, len(result_text), 4096)]:
+                    await _send(chunk)
+            elif silent:
+                log.info("Silent step '%s' completed.", step_name)
 
     await _send(f"✅ *{name}* complete.")
+
+
+async def _run_steps_parallel(steps: list[dict], task_name: str, timeout: int,
+                              model: str, preamble: str, now_date_str: str):
+    """Run non-silent steps concurrently, then silent steps sequentially with collected results."""
+    parallel_steps = [s for s in steps if not s.get("silent")]
+    sequential_steps = [s for s in steps if s.get("silent")]
+
+    parallel_preamble = (preamble + _PARALLEL_NOTE) if preamble else ""
+
+    async def _run_and_send(step: dict) -> tuple[str, str]:
+        step_name, result_text, _ = await _run_single_step(
+            step, task_name, model, parallel_preamble, now_date_str, timeout,
+        )
+        if result_text:
+            for chunk in [result_text[j:j + 4096] for j in range(0, len(result_text), 4096)]:
+                await _send(chunk)
+        return step_name, result_text
+
+    results = await asyncio.gather(
+        *(_run_and_send(s) for s in parallel_steps),
+        return_exceptions=True,
+    )
+
+    collected = []
+    for r in results:
+        if isinstance(r, Exception):
+            log.error("Parallel step failed: %s", r)
+        else:
+            collected.append(r)
+
+    if sequential_steps:
+        context = "\n\n".join(f"## {sn}\n{st}" for sn, st in collected if st)
+        seq_preamble = preamble
+        if context:
+            seq_preamble += f"\n\nResults from parallel steps:\n\n{context}"
+
+        step_timeout = max(timeout // len(sequential_steps), 120)
+        for step in sequential_steps:
+            step_name, result_text, silent = await _run_single_step(
+                step, task_name, model, seq_preamble, now_date_str, step_timeout,
+            )
+            if not silent and result_text:
+                for chunk in [result_text[j:j + 4096] for j in range(0, len(result_text), 4096)]:
+                    await _send(chunk)
+            else:
+                log.info("Silent step '%s' completed.", step_name)
 
 
 async def reload(scheduler: AsyncIOScheduler):
