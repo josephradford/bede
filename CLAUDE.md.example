@@ -49,6 +49,7 @@ Follow the "How Bede Uses These Goals" section in goals.md for accountability gu
 - Confirm before any write operation that wasn't explicitly requested
 - If uncertain about intent, ask one clarifying question rather than guessing
 - For scheduled briefings, include a date/time header so context is clear
+- When creating markdown files, include `author: Bede` in YAML frontmatter
 
 ## Personal Data
 
