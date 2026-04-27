@@ -45,7 +45,6 @@ _TS_PATTERNS = [
 
 # Metrics that map to dedicated tables rather than the generic health_metrics
 _SLEEP_METRIC = "sleep_analysis"
-_STATE_OF_MIND_PATTERNS = re.compile(r"state.of.mind", re.IGNORECASE)
 _MEDICATION_PATTERNS = re.compile(r"medication", re.IGNORECASE)
 
 
@@ -147,24 +146,27 @@ def _process_sleep(db: sqlite3.Connection, metric: dict) -> int:
     return rows
 
 
-def _process_state_of_mind(db: sqlite3.Connection, metric: dict) -> int:
-    """Process state_of_mind metric."""
+def _process_state_of_mind(db: sqlite3.Connection, entries: list) -> int:
+    """Process stateOfMind entries from HAE top-level array.
+
+    HAE format per entry:
+        {"start": "...", "end": "...", "kind": "mood", "valence": 0.8,
+         "valenceClassification": 1, "labels": [...], "associations": [...]}
+    """
     rows = 0
-    for dp in metric.get("data", []):
-        parsed = _parse_hae_timestamp(dp.get("date", ""))
+    for entry in entries:
+        parsed = _parse_hae_timestamp(entry.get("start", ""))
         if not parsed:
             continue
         date, utc_iso = parsed
-        valence = dp.get("qty")
-        # Labels may come as various fields
-        labels = dp.get("label") or dp.get("labels") or dp.get("kindLabel")
+        valence = entry.get("valence")
+        labels = entry.get("labels")
         if isinstance(labels, list):
-            labels = json.dumps(labels)
-        elif isinstance(labels, str) and labels:
-            labels = json.dumps([l.strip() for l in labels.split(",") if l.strip()])
+            labels = json.dumps(labels) if labels else None
         else:
             labels = None
-        context = dp.get("context", None)
+        associations = entry.get("associations")
+        context = json.dumps(associations) if isinstance(associations, list) and associations else None
 
         try:
             db.execute(
@@ -295,11 +297,13 @@ def parse_health_payload(payload: dict) -> int:
     data = payload.get("data", {})
     metrics = data.get("metrics", [])
     workouts = data.get("workouts", [])
+    state_of_mind = data.get("stateOfMind", [])
 
     log.info(
-        "Health payload received: %d metric(s), %d workout(s)",
+        "Health payload received: %d metric(s), %d workout(s), %d stateOfMind",
         len(metrics),
         len(workouts),
+        len(state_of_mind),
     )
 
     db = get_db()
@@ -312,14 +316,13 @@ def parse_health_payload(payload: dict) -> int:
 
         if name == _SLEEP_METRIC or metric.get("aggregatedSleepAnalyses") or metric.get("sleepAnalyses"):
             total_rows += _process_sleep(db, metric)
-        elif _STATE_OF_MIND_PATTERNS.search(name):
-            total_rows += _process_state_of_mind(db, metric)
         elif _MEDICATION_PATTERNS.search(name):
             total_rows += _process_medications(db, metric)
         else:
             total_rows += _process_generic_metric(db, metric)
 
     total_rows += _process_workouts(db, workouts)
+    total_rows += _process_state_of_mind(db, state_of_mind)
 
     db.commit()
     log.info("Health ingest complete: %d row(s) written", total_rows)
