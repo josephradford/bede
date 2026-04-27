@@ -357,6 +357,10 @@ async def handle_datacheck(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _trigger_task(update, "Evening Data Check")
 
 
+async def handle_triage(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _trigger_task(update, "Email Triage")
+
+
 async def post_init(app):
     from telegram import BotCommand, BotCommandScopeAllPrivateChats
     commands = [
@@ -366,6 +370,7 @@ async def post_init(app):
         BotCommand("evening", "Run the Evening Reflection"),
         BotCommand("scout", "Run the Sunday Scout price checker"),
         BotCommand("datacheck", "Run the Evening Data Check"),
+        BotCommand("triage", "Triage today's emails for tasks and events"),
     ]
     await app.bot.set_my_commands(commands)
     await app.bot.set_my_commands(commands, scope=BotCommandScopeAllPrivateChats())
@@ -391,6 +396,7 @@ def main():
     app.add_handler(CommandHandler("evening", handle_evening))
     app.add_handler(CommandHandler("scout", handle_scout))
     app.add_handler(CommandHandler("datacheck", handle_datacheck))
+    app.add_handler(CommandHandler("triage", handle_triage))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     log.info("Bede is running.")
     app.run_polling(drop_pending_updates=True)
