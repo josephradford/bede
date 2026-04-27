@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-from scheduler import reload as scheduler_reload, setup_scheduler, _parse_tasks, _run_task, _running_tasks
+from scheduler import reload as scheduler_reload, setup_scheduler, _parse_tasks, _run_task, _running_tasks, cancel_all_tasks
 from utils import md_to_html
 
 load_dotenv()
@@ -301,7 +301,12 @@ async def handle_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     _sessions.pop(chat_id, None)
     _interactive_session = None
-    await update.message.reply_text("Session cleared. Next message starts fresh.")
+    cancelled = cancel_all_tasks()
+    if cancelled:
+        names = ", ".join(cancelled)
+        await update.message.reply_text(f"Session cleared. Cancelled running tasks: {names}")
+    else:
+        await update.message.reply_text("Session cleared. Next message starts fresh.")
 
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
