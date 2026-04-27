@@ -153,6 +153,7 @@ async def _run_task(task: dict):
         return
 
     _running_tasks.add(name)
+    await asyncio.to_thread(_pull_vault)
     typing_task = asyncio.create_task(_keep_typing())
     try:
         await _run_task_inner(task, name)
