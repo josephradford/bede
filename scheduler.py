@@ -266,11 +266,15 @@ def _next_run_str(cron: str, tz, now) -> str:
     return ""
 
 
+_NOTES_SEPARATOR = "---NOTES---"
+
 _PARALLEL_NOTE = (
     "\n\nIMPORTANT: You are running in parallel with other scout categories. "
     "Do NOT write to or modify /vault/Bede/price-checker-memory.md. "
-    "Instead, include any dead URLs, price changes, or stock transitions "
-    "in your response text so they can be collected afterward."
+    "Instead, put any dead URLs, price changes, or stock transitions "
+    f"AFTER a `{_NOTES_SEPARATOR}` separator line at the end of your response. "
+    "Content before the separator goes to Telegram. Content after it is "
+    "internal-only and will be collected by the Update Memory step."
 )
 
 
@@ -375,8 +379,10 @@ async def _run_steps_parallel(steps: list[dict], task_name: str, timeout: int,
             step, task_name, model, parallel_preamble, now_date_str, timeout,
         )
         if result_text:
-            for chunk in [result_text[j:j + 4096] for j in range(0, len(result_text), 4096)]:
-                await _send(chunk)
+            visible = result_text.split(_NOTES_SEPARATOR, 1)[0].rstrip()
+            if visible:
+                for chunk in [visible[j:j + 4096] for j in range(0, len(visible), 4096)]:
+                    await _send(chunk)
         return step_name, result_text
 
     results = await asyncio.gather(
