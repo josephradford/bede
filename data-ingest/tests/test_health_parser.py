@@ -292,20 +292,19 @@ class TestStateOfMind:
     def test_state_of_mind(self):
         payload = {
             "data": {
-                "metrics": [
+                "metrics": [],
+                "workouts": [],
+                "stateOfMind": [
                     {
-                        "name": "state_of_mind",
-                        "data": [
-                            {
-                                "date": "2026-04-14 09:00:00 +1000",
-                                "qty": 0.8,
-                                "labels": "Happy,Grateful",
-                                "context": "daily",
-                            }
-                        ],
+                        "start": "2026-04-14 09:00:00 +1000",
+                        "end": "2026-04-14 09:05:00 +1000",
+                        "kind": "mood",
+                        "valence": 0.8,
+                        "valenceClassification": 1,
+                        "labels": ["Happy", "Grateful"],
+                        "associations": ["Morning Routine"],
                     }
                 ],
-                "workouts": [],
             }
         }
         rows = parse_health_payload(payload)
@@ -315,7 +314,8 @@ class TestStateOfMind:
         row = db.execute("SELECT * FROM state_of_mind").fetchone()
         assert row["valence"] == 0.8
         assert "Happy" in row["labels"]
-        assert row["context"] == "daily"
+        assert "Grateful" in row["labels"]
+        assert "Morning Routine" in row["context"]
 
 
 class TestMedications:
