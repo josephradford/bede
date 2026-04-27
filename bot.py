@@ -35,12 +35,19 @@ ALLOWED_USER_ID = int(os.environ["ALLOWED_USER_ID"])
 CLAUDE_WORKDIR = os.environ.get("CLAUDE_WORKDIR", "/app")
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 SESSION_TIMEOUT_SECS = int(os.environ.get("SESSION_TIMEOUT_MINUTES", "10")) * 60
+INTERACTIVE_IDLE_TIMEOUT_SECS = int(os.environ.get("INTERACTIVE_IDLE_TIMEOUT_MINUTES", "30")) * 60
+INTERACTIVE_MAX_AGE_SECS = int(os.environ.get("INTERACTIVE_MAX_AGE_HOURS", "2")) * 3600
 VAULT_REPO = os.environ.get("VAULT_REPO", "")
+VAULT_PATH = "/vault"
+REFLECTION_MEMORY_PATH = os.path.join(VAULT_PATH, "Bede", "reflection-memory.md")
 
 _scheduler: AsyncIOScheduler | None = None
 
 # {chat_id: {"session_id": str, "ts": float}}
 _sessions: dict[int, dict] = {}
+
+# Single interactive task session: {"session_id": str, "model": str, "ts": float, "created": float}
+_interactive_session: dict | None = None
 
 REAUTH_NOTICE = (
     "\u26a0\ufe0f Claude auth has expired.\n\n"
@@ -76,6 +83,73 @@ def _pull_vault():
         )
     except Exception:
         pass
+
+
+def register_interactive_session(session_id: str, model: str):
+    """Called by scheduler (via call_soon_threadsafe) to hand off an interactive task session."""
+    global _interactive_session
+    now = time.monotonic()
+    _interactive_session = {
+        "session_id": session_id,
+        "model": model,
+        "ts": now,
+        "created": now,
+    }
+    log.info("Interactive session registered: %s (model: %s)", session_id, model)
+
+
+def _get_interactive_session(now: float) -> dict | None:
+    """Return the active interactive session if within both idle and max-age limits."""
+    global _interactive_session
+    if _interactive_session is None:
+        return None
+    idle_ok = (now - _interactive_session["ts"]) < INTERACTIVE_IDLE_TIMEOUT_SECS
+    age_ok = (now - _interactive_session["created"]) < INTERACTIVE_MAX_AGE_SECS
+    if idle_ok and age_ok:
+        return _interactive_session
+    log.info("Interactive session expired (idle_ok=%s, age_ok=%s).", idle_ok, age_ok)
+    _interactive_session = None
+    return None
+
+
+def _append_correction(text: str):
+    """Append a timestamped correction to reflection-memory.md. Creates the file if missing."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    tz_name = os.environ.get("TIMEZONE", "UTC")
+    now = datetime.now(ZoneInfo(tz_name))
+    timestamp = now.strftime("%Y-%m-%d %H:%M")
+
+    header = (
+        "# Reflection Memory\n\n"
+        "Corrections and preferences Joe has provided about Evening Reflections.\n"
+        "Bede reads this at the start of each reflection to avoid repeating mistakes.\n\n"
+        "## Corrections\n\n"
+    )
+
+    if not os.path.isfile(REFLECTION_MEMORY_PATH):
+        os.makedirs(os.path.dirname(REFLECTION_MEMORY_PATH), exist_ok=True)
+        with open(REFLECTION_MEMORY_PATH, "w") as f:
+            f.write(header)
+
+    with open(REFLECTION_MEMORY_PATH, "a") as f:
+        f.write(f"- [{timestamp}] {text}\n")
+
+    try:
+        subprocess.run(
+            ["git", "-C", VAULT_PATH, "add", REFLECTION_MEMORY_PATH],
+            capture_output=True, timeout=10,
+        )
+        subprocess.run(
+            ["git", "-C", VAULT_PATH, "commit", "-m", "reflection: save correction"],
+            capture_output=True, timeout=10,
+        )
+        subprocess.run(
+            ["git", "-C", VAULT_PATH, "push"],
+            capture_output=True, timeout=30,
+        )
+    except Exception as e:
+        log.warning("Failed to commit reflection correction: %s", e)
 
 
 def _parse_output(stdout: str) -> tuple[str, str | None]:
@@ -124,6 +198,7 @@ async def _keep_typing(bot, chat_id: int):
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global _interactive_session
     if update.effective_user.id != ALLOWED_USER_ID:
         log.warning("Rejected message from user %s", update.effective_user.id)
         return
@@ -132,16 +207,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     now = time.monotonic()
 
-    # Determine session continuity
-    session = _sessions.get(chat_id)
-    resume_id = None
-    if session and (now - session["ts"]) < SESSION_TIMEOUT_SECS:
-        resume_id = session["session_id"]
+    # Check interactive task session first, then regular chat session
+    interactive = _get_interactive_session(now)
+    if interactive:
+        resume_id = interactive["session_id"]
+        model = interactive.get("model")
+    else:
+        session = _sessions.get(chat_id)
+        resume_id = None
+        model = None
+        if session and (now - session["ts"]) < SESSION_TIMEOUT_SECS:
+            resume_id = session["session_id"]
 
     reset_sent = False
     await asyncio.to_thread(_pull_vault)
 
-    cmd = _build_cmd(text, resume_id)
+    cmd = _build_cmd(text, resume_id, model=model)
     log.info("Running: %s", " ".join(cmd[:4]) + " ...")
 
     typing_task = asyncio.create_task(_keep_typing(context.bot, chat_id))
@@ -158,6 +239,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if resume_id and "no conversation found" in proc.stderr.lower():
         log.warning("Stale session %s, retrying fresh.", resume_id)
         _sessions.pop(chat_id, None)
+        if interactive:
+            _interactive_session = None
+            interactive = None
         await update.message.reply_text("_(Session reset — previous context lost)_", parse_mode="Markdown")
         reset_sent = True
         cmd = _build_cmd(text, None)
@@ -186,11 +270,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Fallback: surface raw output so failures are visible
         result_text = (proc.stdout or proc.stderr or "No response.").strip()[:4096]
 
-    # Update session — if no new session ID came back, the old one was consumed;
-    # clear it so the next message starts fresh rather than hitting a stale resume.
-    if new_session_id:
+    # Update session state
+    if interactive and new_session_id:
+        _interactive_session["session_id"] = new_session_id
+        _interactive_session["ts"] = now
+        await asyncio.to_thread(_append_correction, text)
+    elif interactive and not new_session_id:
+        _interactive_session = None
+        log.info("Interactive session ended (no session_id returned).")
+    elif new_session_id:
         _sessions[chat_id] = {"session_id": new_session_id, "ts": now}
-        # Notify on new context (but not if we already sent a reset message)
         if not resume_id and not reset_sent:
             await update.message.reply_text("_(New context started)_", parse_mode="Markdown")
     else:
@@ -206,10 +295,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global _interactive_session
     if update.effective_user.id != ALLOWED_USER_ID:
         return
     chat_id = update.effective_chat.id
     _sessions.pop(chat_id, None)
+    _interactive_session = None
     await update.message.reply_text("Session cleared. Next message starts fresh.")
 
 

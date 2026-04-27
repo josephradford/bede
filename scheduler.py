@@ -82,8 +82,14 @@ def _parse_tasks() -> list[dict]:
         data = yaml.safe_load(match.group(1)) or {}
         tasks = data.get("tasks", [])
         enabled = [t for t in tasks if t.get("enabled", True)]
-        log.info("Loaded %d scheduled task(s) from vault.", len(enabled))
-        return enabled
+        valid = []
+        for t in enabled:
+            if t.get("interactive") and t.get("steps"):
+                log.error("Task '%s': interactive + steps is not supported — skipping.", t.get("name"))
+                continue
+            valid.append(t)
+        log.info("Loaded %d scheduled task(s) from vault.", len(valid))
+        return valid
     except yaml.YAMLError as e:
         log.error("Failed to parse tasks YAML: %s", e)
         return []
@@ -125,6 +131,21 @@ def _get_task_env() -> dict:
         _task_env = {k: v for k, v in os.environ.items()
                      if k not in ("TELEGRAM_BOT_TOKEN", "ALLOWED_USER_ID")}
     return _task_env
+
+
+def _extract_session_id(stdout: str) -> str | None:
+    """Extract just the session_id from claude JSON output."""
+    for line in reversed(stdout.splitlines()):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+            if obj.get("type") == "result":
+                return obj.get("session_id")
+        except json.JSONDecodeError:
+            continue
+    return None
 
 
 def _extract_result(stdout: str) -> str:
@@ -221,6 +242,15 @@ async def _run_task_inner(task: dict, name: str):
     full = header + result_text
     for chunk in [full[i:i + 4096] for i in range(0, len(full), 4096)]:
         await _send(chunk)
+
+    if task.get("interactive"):
+        session_id = _extract_session_id(proc.stdout)
+        if session_id:
+            import bot as _bot_module
+            _bot_module.register_interactive_session(session_id, model)
+            log.info("Interactive session handed off for task '%s': %s", name, session_id)
+        else:
+            log.warning("Task '%s' is interactive but no session_id was returned.", name)
 
 
 def _next_run_str(cron: str, tz, now) -> str:
