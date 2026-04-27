@@ -392,4 +392,6 @@ def main():
 
 
 if __name__ == "__main__":
+    import sys
+    sys.modules["bot"] = sys.modules[__name__]
     main()
