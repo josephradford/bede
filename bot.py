@@ -222,19 +222,26 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def _safe_reply(message, text: str):
+    try:
+        await message.reply_text(text)
+    except Exception as e:
+        log.warning("Failed to send Telegram reply (%s): %s", text, e)
+
+
 async def _trigger_task(update: Update, task_name: str):
     """Look up a task by name and run it in the background."""
     if update.effective_user.id != ALLOWED_USER_ID:
         return
     if task_name in _running_tasks:
-        await update.message.reply_text(f"⚠️ {task_name} is already running.")
+        await _safe_reply(update.message, f"⚠️ {task_name} is already running.")
         return
     tasks = _parse_tasks()
     task = next((t for t in tasks if t.get("name") == task_name), None)
     if not task:
-        await update.message.reply_text(f"{task_name} not found in scheduled-tasks.md.")
+        await _safe_reply(update.message, f"{task_name} not found in scheduled-tasks.md.")
         return
-    await update.message.reply_text(f"Running {task_name}...")
+    await _safe_reply(update.message, f"Running {task_name}...")
     asyncio.create_task(_run_task(task))
 
 
