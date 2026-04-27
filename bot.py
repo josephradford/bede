@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-from scheduler import reload as scheduler_reload, setup_scheduler, _parse_tasks, _run_task
+from scheduler import reload as scheduler_reload, setup_scheduler, _parse_tasks, _run_task, _running_tasks
 from utils import md_to_html
 
 load_dotenv()
@@ -222,52 +222,36 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def handle_scout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def _trigger_task(update: Update, task_name: str):
+    """Look up a task by name and run it in the background."""
     if update.effective_user.id != ALLOWED_USER_ID:
         return
-    tasks = _parse_tasks()
-    task = next((t for t in tasks if t.get("name") == "Sunday Scout"), None)
-    if not task:
-        await update.message.reply_text("Sunday Scout task not found in scheduled-tasks.md.")
+    if task_name in _running_tasks:
+        await update.message.reply_text(f"⚠️ {task_name} is already running.")
         return
-    await update.message.reply_text("Running Sunday Scout...")
-    await _run_task(task)
+    tasks = _parse_tasks()
+    task = next((t for t in tasks if t.get("name") == task_name), None)
+    if not task:
+        await update.message.reply_text(f"{task_name} not found in scheduled-tasks.md.")
+        return
+    await update.message.reply_text(f"Running {task_name}...")
+    asyncio.create_task(_run_task(task))
+
+
+async def handle_scout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _trigger_task(update, "Sunday Scout")
 
 
 async def handle_morning(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ALLOWED_USER_ID:
-        return
-    tasks = _parse_tasks()
-    task = next((t for t in tasks if t.get("name") == "Morning Briefing"), None)
-    if not task:
-        await update.message.reply_text("Morning Briefing task not found in scheduled-tasks.md.")
-        return
-    await update.message.reply_text("Running Morning Briefing...")
-    await _run_task(task)
+    await _trigger_task(update, "Morning Briefing")
 
 
 async def handle_evening(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ALLOWED_USER_ID:
-        return
-    tasks = _parse_tasks()
-    task = next((t for t in tasks if t.get("name") == "Evening Reflection"), None)
-    if not task:
-        await update.message.reply_text("Evening Reflection task not found in scheduled-tasks.md.")
-        return
-    await update.message.reply_text("Running Evening Reflection...")
-    await _run_task(task)
+    await _trigger_task(update, "Evening Reflection")
 
 
 async def handle_datacheck(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ALLOWED_USER_ID:
-        return
-    tasks = _parse_tasks()
-    task = next((t for t in tasks if t.get("name") == "Evening Data Check"), None)
-    if not task:
-        await update.message.reply_text("Evening Data Check task not found in scheduled-tasks.md.")
-        return
-    await update.message.reply_text("Running Evening Data Check...")
-    await _run_task(task)
+    await _trigger_task(update, "Evening Data Check")
 
 
 async def post_init(app):
