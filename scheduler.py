@@ -24,6 +24,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 import subprocess
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -120,7 +121,23 @@ async def _keep_typing():
 
 DEFAULT_TASK_TIMEOUT = 300  # seconds
 
-_running_tasks: set[str] = set()
+_running_tasks: dict[str, asyncio.Task] = {}
+_running_procs: dict[str, subprocess.Popen] = {}
+
+
+def cancel_all_tasks() -> list[str]:
+    """Cancel all running tasks and kill their subprocesses. Returns cancelled task names."""
+    cancelled = []
+    for name, proc in list(_running_procs.items()):
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except (ProcessLookupError, OSError):
+            pass
+    _running_procs.clear()
+    for name, task in list(_running_tasks.items()):
+        task.cancel()
+        cancelled.append(name)
+    return cancelled
 
 _task_env = None
 
@@ -131,6 +148,25 @@ def _get_task_env() -> dict:
         _task_env = {k: v for k, v in os.environ.items()
                      if k not in ("TELEGRAM_BOT_TOKEN", "ALLOWED_USER_ID")}
     return _task_env
+
+
+async def _run_subprocess(cmd: list[str], timeout: int, task_name: str) -> subprocess.CompletedProcess:
+    """Run a subprocess with tracking for cancellation. Raises TimeoutExpired or CancelledError."""
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        stdin=subprocess.DEVNULL, cwd=CLAUDE_WORKDIR,
+        text=True, env=_get_task_env(), start_new_session=True,
+    )
+    _running_procs[task_name] = proc
+    try:
+        stdout, stderr = await asyncio.to_thread(proc.communicate, timeout=timeout)
+        return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+    except subprocess.TimeoutExpired:
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        proc.wait()
+        raise
+    finally:
+        _running_procs.pop(task_name, None)
 
 
 def _extract_session_id(stdout: str) -> str | None:
@@ -173,14 +209,20 @@ async def _run_task(task: dict):
         await _send(f"⚠️ *{name}* is already running.")
         return
 
-    _running_tasks.add(name)
+    _running_tasks[name] = asyncio.current_task()
     await asyncio.to_thread(_pull_vault)
     typing_task = asyncio.create_task(_keep_typing())
     try:
         await _run_task_inner(task, name)
+    except asyncio.CancelledError:
+        log.info("Task '%s' was cancelled.", name)
+        try:
+            await _send(f"🛑 *{name}* cancelled.")
+        except Exception:
+            pass
     finally:
         typing_task.cancel()
-        _running_tasks.discard(name)
+        _running_tasks.pop(name, None)
 
 
 async def _run_task_inner(task: dict, name: str):
@@ -217,12 +259,7 @@ async def _run_task_inner(task: dict, name: str):
     ]
 
     try:
-        proc = await asyncio.to_thread(
-            subprocess.run, cmd,
-            capture_output=True, text=True,
-            stdin=subprocess.DEVNULL, cwd=CLAUDE_WORKDIR,
-            timeout=timeout, env=_get_task_env(),
-        )
+        proc = await _run_subprocess(cmd, timeout, name)
     except subprocess.TimeoutExpired:
         mins = timeout // 60
         await _send(f"📅 *{name}*\n⚠️ Timed out after {mins} minutes.")
@@ -302,14 +339,10 @@ async def _run_single_step(step: dict, task_name: str, model: str, preamble: str
     ]
 
     log.info("Running step '%s' for task '%s'", step_name, task_name)
+    proc_key = f"{task_name}/{step_name}"
 
     try:
-        proc = await asyncio.to_thread(
-            subprocess.run, cmd,
-            capture_output=True, text=True,
-            stdin=subprocess.DEVNULL, cwd=CLAUDE_WORKDIR,
-            timeout=step_timeout, env=_get_task_env(),
-        )
+        proc = await _run_subprocess(cmd, step_timeout, proc_key)
     except subprocess.TimeoutExpired:
         return step_name, f"⚠️ *{step_name}* — timed out", silent
     except Exception as e:
