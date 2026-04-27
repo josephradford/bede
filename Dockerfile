@@ -19,7 +19,7 @@ RUN curl -fsSL https://claude.ai/install.sh | bash && \
 RUN useradd --system --create-home --uid 1000 --shell /bin/bash bede && \
     mkdir -p /home/bede/.ssh /home/bede/.claude && \
     chmod 700 /home/bede/.ssh && \
-    chown -R bede:bede /home/bede/.ssh /home/bede/.claude
+    chown -R bede:bede /home/bede/.ssh /home/bede/.claude /opt/playwright-browsers
 
 WORKDIR /app
 
