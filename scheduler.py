@@ -97,8 +97,29 @@ def _parse_tasks() -> list[dict]:
         return []
 
 
+def _chunk_text(text: str, max_len: int = 4096) -> list[str]:
+    """Split text into chunks at paragraph boundaries to avoid breaking markdown."""
+    if len(text) <= max_len:
+        return [text]
+    chunks = []
+    while text:
+        if len(text) <= max_len:
+            chunks.append(text)
+            break
+        split_at = text.rfind("\n\n", 0, max_len)
+        if split_at == -1:
+            split_at = text.rfind("\n", 0, max_len)
+        if split_at == -1:
+            split_at = text.rfind(" ", 0, max_len)
+        if split_at == -1:
+            split_at = max_len
+        chunks.append(text[:split_at].rstrip())
+        text = text[split_at:].lstrip("\n")
+    return chunks
+
+
 async def _send(text: str):
-    """Send a message to the user's Telegram chat."""
+    """Send a message to the user's Telegram chat, falling back to plain text."""
     try:
         await _bot.send_message(
             chat_id=_chat_id,
@@ -106,8 +127,15 @@ async def _send(text: str):
             parse_mode="HTML",
             disable_web_page_preview=True,
         )
-    except Exception as e:
-        log.error("Failed to send scheduled message: %s", e)
+    except Exception:
+        try:
+            await _bot.send_message(
+                chat_id=_chat_id,
+                text=text,
+                disable_web_page_preview=True,
+            )
+        except Exception as e:
+            log.error("Failed to send scheduled message: %s", e)
 
 
 TYPING_MAX_DURATION = 3600
@@ -202,9 +230,10 @@ def _extract_session_id(stdout: str) -> str | None:
     return None
 
 
-def _extract_result(stdout: str) -> str:
-    """Extract the result text from claude --output-format json output."""
+def _extract_result(stdout: str) -> tuple[str, str]:
+    """Extract result text and stop_reason from claude JSON output."""
     result_text = ""
+    stop_reason = "end_turn"
     for line in stdout.splitlines():
         line = line.strip()
         if not line:
@@ -213,9 +242,10 @@ def _extract_result(stdout: str) -> str:
             obj = json.loads(line)
             if obj.get("type") == "result":
                 result_text = obj.get("result", "").strip()
+                stop_reason = obj.get("stop_reason", "end_turn")
         except json.JSONDecodeError:
             continue
-    return result_text
+    return result_text, stop_reason
 
 
 async def _run_task(task: dict):
@@ -289,7 +319,7 @@ async def _run_task_inner(task: dict, name: str):
         await _send(f"📅 *{name}*\n⚠️ Error: {e}")
         return
 
-    result_text = _extract_result(proc.stdout)
+    result_text, stop_reason = _extract_result(proc.stdout)
 
     if not result_text:
         if proc.returncode != 0:
@@ -297,8 +327,12 @@ async def _run_task_inner(task: dict, name: str):
         else:
             result_text = (proc.stdout or proc.stderr or "No response.").strip()
 
+    if stop_reason == "max_tokens":
+        log.warning("Task '%s' output was truncated (stop_reason=max_tokens).", name)
+        result_text += "\n\n⚠️ _Response was truncated (output token limit reached)._"
+
     full = header + result_text
-    for chunk in [full[i:i + 4096] for i in range(0, len(full), 4096)]:
+    for chunk in _chunk_text(full):
         await _send(chunk)
 
     if task.get("interactive"):
@@ -369,13 +403,17 @@ async def _run_single_step(step: dict, task_name: str, model: str, preamble: str
     except Exception as e:
         return step_name, f"⚠️ *{step_name}* — error: {e}", silent
 
-    result_text = _extract_result(proc.stdout)
+    result_text, stop_reason = _extract_result(proc.stdout)
 
     if not result_text:
         if proc.returncode != 0:
             result_text = f"⚠️ Failed (exit {proc.returncode}):\n{(proc.stderr or proc.stdout or 'No output.')[:500]}"
         else:
             result_text = (proc.stdout or proc.stderr or "No output.").strip()
+
+    if stop_reason == "max_tokens":
+        log.warning("Step '%s' output was truncated (stop_reason=max_tokens).", step_name)
+        result_text += "\n\n⚠️ _Response was truncated._"
 
     return step_name, result_text, silent
 
@@ -412,7 +450,7 @@ async def _run_steps_task(task: dict, name: str, steps: list[dict]):
                 step, name, model, preamble, now_date_str, step_timeout,
             )
             if not silent and result_text:
-                for chunk in [result_text[j:j + 4096] for j in range(0, len(result_text), 4096)]:
+                for chunk in _chunk_text(result_text):
                     await _send(chunk)
             elif silent:
                 log.info("Silent step '%s' completed.", step_name)
@@ -435,7 +473,7 @@ async def _run_steps_parallel(steps: list[dict], task_name: str, timeout: int,
         if result_text:
             visible = result_text.split(_NOTES_SEPARATOR, 1)[0].rstrip()
             if visible:
-                for chunk in [visible[j:j + 4096] for j in range(0, len(visible), 4096)]:
+                for chunk in _chunk_text(visible):
                     await _send(chunk)
         return step_name, result_text
 
@@ -463,7 +501,7 @@ async def _run_steps_parallel(steps: list[dict], task_name: str, timeout: int,
                 step, task_name, model, seq_preamble, now_date_str, step_timeout,
             )
             if not silent and result_text:
-                for chunk in [result_text[j:j + 4096] for j in range(0, len(result_text), 4096)]:
+                for chunk in _chunk_text(result_text):
                     await _send(chunk)
             else:
                 log.info("Silent step '%s' completed.", step_name)
