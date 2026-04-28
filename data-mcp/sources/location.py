@@ -12,8 +12,8 @@ from .common import DEFAULT_TZ, fmt_time, local_date_to_utc_range, resolve_date
 OWNTRACKS_URL = os.environ.get("OWNTRACKS_URL", "http://owntracks-recorder:8083")
 OWNTRACKS_USER = os.environ.get("OWNTRACKS_USER", "")
 OWNTRACKS_DEVICE = os.environ.get("OWNTRACKS_DEVICE", "")
-NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
-USER_AGENT = "data-mcp/1.0 (home-server-stack; personal use)"
+NOMINATIM_URL = os.environ.get("NOMINATIM_URL", "https://nominatim.openstreetmap.org/reverse")
+USER_AGENT = "data-mcp/1.0 (bede; personal use)"
 
 # In-memory geocoding cache: (lat_rounded, lon_rounded) -> place string
 _geocache: dict[tuple[float, float], dict] = {}
@@ -50,10 +50,20 @@ async def _fetch_points(from_date: date, to_date: date) -> list[dict]:
         "from": from_date.isoformat(),
         "to": to_date.isoformat(),
     }
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.get(f"{OWNTRACKS_URL}/api/0/locations", params=params)
-        r.raise_for_status()
-        data = r.json()
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.get(f"{OWNTRACKS_URL}/api/0/locations", params=params)
+            r.raise_for_status()
+            data = r.json()
+    except httpx.ConnectError:
+        raise RuntimeError(
+            f"OwnTracks Recorder unreachable at {OWNTRACKS_URL}. "
+            "Set OWNTRACKS_URL to the correct address."
+        )
+    except httpx.HTTPStatusError as e:
+        raise RuntimeError(
+            f"OwnTracks Recorder returned {e.response.status_code} from {OWNTRACKS_URL}."
+        )
     return data.get("data", [])
 
 
@@ -63,13 +73,16 @@ async def _reverse_geocode(lat: float, lon: float) -> dict:
     if key in _geocache:
         return _geocache[key]
 
-    async with httpx.AsyncClient(timeout=10, headers={"User-Agent": USER_AGENT}) as client:
-        r = await client.get(
-            NOMINATIM_URL,
-            params={"lat": lat, "lon": lon, "format": "json"},
-        )
-        r.raise_for_status()
-        geo = r.json()
+    try:
+        async with httpx.AsyncClient(timeout=10, headers={"User-Agent": USER_AGENT}) as client:
+            r = await client.get(
+                NOMINATIM_URL,
+                params={"lat": lat, "lon": lon, "format": "json"},
+            )
+            r.raise_for_status()
+            geo = r.json()
+    except (httpx.ConnectError, httpx.HTTPStatusError):
+        geo = {"display_name": f"{lat:.4f}, {lon:.4f}", "address": {}}
 
     _geocache[key] = geo
     return geo
