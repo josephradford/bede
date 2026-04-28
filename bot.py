@@ -153,13 +153,14 @@ def _append_correction(text: str):
         log.warning("Failed to commit reflection correction: %s", e)
 
 
-def _parse_output(stdout: str) -> tuple[str, str | None]:
+def _parse_output(stdout: str) -> tuple[str, str | None, str]:
     """
     claude --output-format json emits newline-delimited JSON objects.
-    The final object with type=result contains the answer and session_id.
+    The final object with type=result contains the answer, session_id, and stop_reason.
     """
     result_text = ""
     session_id = None
+    stop_reason = "end_turn"
 
     for line in stdout.splitlines():
         line = line.strip()
@@ -173,8 +174,30 @@ def _parse_output(stdout: str) -> tuple[str, str | None]:
         if obj.get("type") == "result":
             result_text = obj.get("result", "").strip()
             session_id = obj.get("session_id")
+            stop_reason = obj.get("stop_reason", "end_turn")
 
-    return result_text, session_id
+    return result_text, session_id, stop_reason
+
+
+def _chunk_text(text: str, max_len: int = 4096) -> list[str]:
+    """Split text into chunks at paragraph boundaries to avoid breaking markdown."""
+    if len(text) <= max_len:
+        return [text]
+    chunks = []
+    while text:
+        if len(text) <= max_len:
+            chunks.append(text)
+            break
+        split_at = text.rfind("\n\n", 0, max_len)
+        if split_at == -1:
+            split_at = text.rfind("\n", 0, max_len)
+        if split_at == -1:
+            split_at = text.rfind(" ", 0, max_len)
+        if split_at == -1:
+            split_at = max_len
+        chunks.append(text[:split_at].rstrip())
+        text = text[split_at:].lstrip("\n")
+    return chunks
 
 
 CLAUDE_TIMEOUT = 120
@@ -281,11 +304,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(REAUTH_NOTICE, parse_mode="Markdown")
         return
 
-    result_text, new_session_id = _parse_output(proc.stdout)
+    result_text, new_session_id, stop_reason = _parse_output(proc.stdout)
 
     if not result_text:
         # Fallback: surface raw output so failures are visible
         result_text = (proc.stdout or proc.stderr or "No response.").strip()[:4096]
+
+    if stop_reason == "max_tokens":
+        log.warning("Response was truncated (stop_reason=max_tokens).")
+        result_text += "\n\n⚠️ _Response was truncated (output token limit reached)._"
 
     # Update session state
     if interactive and new_session_id:
@@ -303,8 +330,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if _sessions.pop(chat_id, None):
             await update.message.reply_text("_(Session reset — previous context lost)_", parse_mode="Markdown")
 
-    # Telegram message limit is 4096 chars; convert markdown to HTML, fall back to plain text
-    for chunk in [result_text[i:i + 4096] for i in range(0, len(result_text), 4096)]:
+    for chunk in _chunk_text(result_text):
         try:
             await update.message.reply_text(md_to_html(chunk), parse_mode="HTML")
         except Exception:
