@@ -3,10 +3,14 @@ name: calendar-check
 description: >
   Check all Google Calendars for events, not just the primary. Use this skill
   whenever you need to look up calendar events, check for conflicts, or list
-  what's on a given day/range.
+  what's on a given day/range. Also use for "what's on today", "am I free on
+  Saturday", "check for conflicts", or any calendar query.
 ---
 
 # Calendar Check Skill
+
+**Google account:** `ai.joeradford@gmail.com` — always use this email for
+all workspace-mcp calendar calls.
 
 Google Calendar lookups must check ALL calendars, not just the primary.
 Joe has multiple calendars (personal, work, birthdays, shared, etc.) and
@@ -18,7 +22,7 @@ events on secondary calendars are frequently missed.
    the account.
 
 2. For EACH calendar ID returned, call `get_events` with the requested date
-   range.
+   range. If no date range was specified, default to today.
 
 3. Merge all results into a single list, sorted chronologically. Include the
    calendar name with each event so they're distinguishable:
@@ -35,4 +39,3 @@ events on secondary calendars are frequently missed.
 - If a calendar API call fails, note which calendar failed and continue with
   the others — don't abort the whole check
 - For conflict checking, flag any overlapping events across all calendars
-- The Google account is `ai.joeradford@gmail.com` — always use this email

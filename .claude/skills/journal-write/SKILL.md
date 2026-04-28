@@ -10,66 +10,22 @@ description: >
 # Journal Write Skill
 
 Write a structured daily journal entry from collected data and analysis.
-
-ARGUMENTS: the skill receives the date (YYYY-MM-DD) and the analysis content
-to write. If no arguments, use today's date.
+The date and analysis content come from the conversation context (e.g. the
+evening reflection passes its gathered data and analysis here).
 
 ## Step 1 — Read inputs
 
-- Read `/vault/Bede/journal-template.md` for the canonical structure
-- Read `/vault/Bede/reflection-memory.md` for formatting corrections and
-  preferences from past reflections — these override defaults
+- Read `/vault/Bede/journal-template.md` for the canonical structure — follow
+  it exactly
+- Read `/vault/Bede/reflection-memory.md` for corrections and preferences
+  from past reflections — these override the template defaults and the
+  quality checks below
 - Read `/vault/Journal/[date].md` if it exists — check for an existing
   `## Priorities` section to preserve
 
-## Step 2 — Build the journal file
+## Step 2 — Quality checks before writing
 
-Follow the template structure exactly:
-
-```markdown
----
-date: YYYY-MM-DD
-author: bede
-type: journal
-tags:
-  - daily
----
-
-# YYYY-MM-DD
-
-## Priorities
-[preserve from existing file if present, otherwise from analysis]
-
-## Timeline
-*Generated HH:MM*
-
-### Weather
-[conditions, high/low, precipitation, wind]
-
-[chronological reconstruction from all data sources]
-- **~HH:MM** — [event/activity] *(source)*
-
-## Analysis
-
-### Health
-### Work
-### Family
-### Screen Time
-### Safari
-### YouTube
-### Professional Development
-### Wellbeing
-
-## Priorities Check
-- ✓/✗/~/? [priority] — [evidence]
-
-> [one honest paragraph — Bede's assessment in second person]
-
-## Tomorrow's Priorities
-- [suggested priorities based on schedule and goals]
-```
-
-## Step 3 — Quality checks before writing
+Apply these checks to the analysis content before writing the journal:
 
 - **Timeline is the backbone.** It must be built from actual data, not
   summaries. Include approximate times, source attribution, and location
@@ -86,39 +42,21 @@ tags:
 - **Every section must have content or "data unavailable".** Never silently
   skip a section.
 
-## Step 4 — Write the journal
+## Step 3 — Write the journal
 
-Write to `/vault/Journal/[date].md`. If the file exists and has a
-`## Priorities` section, preserve that section and replace everything else.
+Write to `/vault/Journal/[date].md` following the structure from
+`journal-template.md`. If the file exists and has a `## Priorities` section,
+preserve that section and replace everything else.
 
-## Step 5 — Write tomorrow's priorities
+## Step 4 — Write tomorrow's priorities
 
-Calculate tomorrow's date. Create or update `/vault/Journal/[tomorrow].md`:
-
-```markdown
-# [tomorrow's date]
-
-## Priorities
-- [each suggested priority]
-```
+Calculate tomorrow's date. Create or update `/vault/Journal/[tomorrow].md`
+with a `## Priorities` section containing the suggested priorities.
 
 If tomorrow's file already exists, only add/update the `## Priorities`
 section — do not overwrite other content.
 
-## Step 6 — Commit and push
+## Step 5 — Commit and push
 
-Use `/vault-write` or directly:
-```bash
-cd /vault && git add -A && git commit -m "journal: [date] evening reflection" && git push
-```
-
-## Common mistakes (from reflection-memory.md)
-
-Read `/vault/Bede/reflection-memory.md` each time — it contains corrections
-Joe has given about past journal entries. These override any defaults above.
-Typical issues include:
-- Incorrect categorisation of screen time (e.g. calling productive time
-  "mindless")
-- Missing data sources that were available but not queried
-- Overly generous or overly harsh assessments
-- Wrong time attributions in the timeline
+Use /vault-write to commit both files with message
+`journal: [date] evening reflection`.
