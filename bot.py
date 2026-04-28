@@ -342,7 +342,7 @@ async def _trigger_task(update: Update, task_name: str):
 
 
 async def handle_scout(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await _trigger_task(update, "Sunday Scout")
+    await _trigger_task(update, "Deal Scout")
 
 
 async def handle_morning(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -368,7 +368,7 @@ async def post_init(app):
         BotCommand("reset", "Clear session and start fresh"),
         BotCommand("morning", "Run the Morning Briefing"),
         BotCommand("evening", "Run the Evening Reflection"),
-        BotCommand("scout", "Run the Sunday Scout price checker"),
+        BotCommand("scout", "Run the Deal Scout"),
         BotCommand("datacheck", "Run the Evening Data Check"),
         BotCommand("triage", "Triage today's emails for tasks and events"),
     ]
