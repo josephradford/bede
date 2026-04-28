@@ -50,6 +50,7 @@ Follow the "How Bede Uses These Goals" section in goals.md for accountability gu
 - If uncertain about intent, ask one clarifying question rather than guessing
 - For scheduled briefings, include a date/time header so context is clear
 - When creating markdown files, include `author: Bede` in YAML frontmatter
+- After any vault write, commit and push: `cd /vault && git add -A && git commit -m "<short description>" && git push`
 
 ## Personal Data
 
