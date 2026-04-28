@@ -1,8 +1,10 @@
 """Weather data via homepage-api BOM endpoint."""
 
+import os
+
 import httpx
 
-HOMEPAGE_API_URL = "http://homepage-api:5000"
+HOMEPAGE_API_URL = os.environ.get("HOMEPAGE_API_URL", "http://homepage-api:5000")
 
 
 async def get_weather() -> dict:

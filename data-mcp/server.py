@@ -1,5 +1,6 @@
 """Bede Data MCP — FastMCP server exposing personal data tools."""
 
+import httpx
 from fastmcp import FastMCP
 
 from sources import health, location, vault, weather
@@ -136,7 +137,10 @@ async def get_location_summary(
         date: Local date — 'YYYY-MM-DD', 'today', or 'yesterday'.
         timezone: Olson timezone name (default: Australia/Sydney).
     """
-    return await location.get_location_summary(date, timezone=timezone)
+    try:
+        return await location.get_location_summary(date, timezone=timezone)
+    except (RuntimeError, httpx.ConnectError, httpx.HTTPStatusError) as e:
+        return {"error": "Location service unavailable", "detail": str(e)}
 
 
 @mcp.tool()
@@ -152,7 +156,10 @@ async def get_location_raw(
         to_date: End local date ('YYYY-MM-DD').
         timezone: Olson timezone name.
     """
-    return await location.get_location_raw(from_date, to_date, timezone=timezone)
+    try:
+        return await location.get_location_raw(from_date, to_date, timezone=timezone)
+    except (RuntimeError, httpx.ConnectError, httpx.HTTPStatusError) as e:
+        return {"error": "Location service unavailable", "detail": str(e)}
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +262,10 @@ async def get_weather() -> dict:
     daily forecast with rain chance, UV index, and sunrise/sunset times.
     Data sourced from the Australian Bureau of Meteorology.
     """
-    return await weather.get_weather()
+    try:
+        return await weather.get_weather()
+    except (httpx.ConnectError, httpx.HTTPStatusError) as e:
+        return {"error": "Weather service unavailable", "detail": str(e)}
 
 
 # ---------------------------------------------------------------------------
