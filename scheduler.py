@@ -26,6 +26,7 @@ import logging
 import os
 import signal
 import subprocess
+import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -109,14 +110,18 @@ async def _send(text: str):
         log.error("Failed to send scheduled message: %s", e)
 
 
-async def _keep_typing():
-    """Send typing action every 4s so it doesn't expire while a task runs."""
-    while True:
+TYPING_MAX_DURATION = 3600
+
+async def _keep_typing(max_duration: float = TYPING_MAX_DURATION):
+    """Send typing action every 4s. Auto-stops after max_duration as a safety net."""
+    deadline = time.monotonic() + max_duration
+    while time.monotonic() < deadline:
         try:
             await _bot.send_chat_action(chat_id=_chat_id, action="typing")
         except Exception:
             pass
         await asyncio.sleep(4)
+    log.warning("Typing indicator exceeded %ds safety limit.", int(max_duration))
 
 
 DEFAULT_TASK_TIMEOUT = 300  # seconds
@@ -162,8 +167,21 @@ async def _run_subprocess(cmd: list[str], timeout: int, task_name: str) -> subpr
         stdout, stderr = await asyncio.to_thread(proc.communicate, timeout=timeout)
         return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
     except subprocess.TimeoutExpired:
-        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-        proc.wait()
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except (ProcessLookupError, OSError):
+            pass
+        try:
+            await asyncio.to_thread(proc.wait, 10)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, OSError):
+                proc.kill()
+            try:
+                await asyncio.to_thread(proc.wait, 5)
+            except subprocess.TimeoutExpired:
+                pass
         raise
     finally:
         _running_procs.pop(task_name, None)
@@ -211,7 +229,10 @@ async def _run_task(task: dict):
 
     _running_tasks[name] = asyncio.current_task()
     await asyncio.to_thread(_pull_vault)
-    typing_task = asyncio.create_task(_keep_typing())
+    timeout = int(task.get("timeout", DEFAULT_TASK_TIMEOUT))
+    steps = task.get("steps")
+    max_typing = (timeout * len(steps) + 120) if steps else (timeout + 120)
+    typing_task = asyncio.create_task(_keep_typing(max_duration=max_typing))
     try:
         await _run_task_inner(task, name)
     except asyncio.CancelledError:

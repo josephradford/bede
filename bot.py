@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 import subprocess
 import time
 
@@ -176,25 +177,41 @@ def _parse_output(stdout: str) -> tuple[str, str | None]:
     return result_text, session_id
 
 
+CLAUDE_TIMEOUT = 120
+
 def _run_claude(cmd: list[str], workdir: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        stdin=subprocess.DEVNULL,
-        cwd=workdir,
-        timeout=120,
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        stdin=subprocess.DEVNULL, cwd=workdir, text=True,
+        start_new_session=True,
     )
+    try:
+        stdout, stderr = proc.communicate(timeout=CLAUDE_TIMEOUT)
+        return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (ProcessLookupError, OSError):
+            proc.kill()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
+        raise
 
 
-async def _keep_typing(bot, chat_id: int):
-    """Sends typing action every 4s so it doesn't expire while Claude thinks."""
-    while True:
+TYPING_MAX_DURATION = 600
+
+async def _keep_typing(bot, chat_id: int, max_duration: float = TYPING_MAX_DURATION):
+    """Sends typing action every 4s. Auto-stops after max_duration as a safety net."""
+    deadline = time.monotonic() + max_duration
+    while time.monotonic() < deadline:
         try:
             await bot.send_chat_action(chat_id=chat_id, action="typing")
         except Exception:
             pass
         await asyncio.sleep(4)
+    log.warning("Typing indicator exceeded %ds safety limit.", int(max_duration))
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
