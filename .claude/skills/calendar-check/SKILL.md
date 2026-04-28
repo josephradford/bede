@@ -9,12 +9,12 @@ description: >
 
 # Calendar Check Skill
 
-**Google account:** `ai.joeradford@gmail.com` — always use this email for
-all workspace-mcp calendar calls.
+Use the Google account email from CLAUDE.md for all workspace-mcp calendar
+calls.
 
 Google Calendar lookups must check ALL calendars, not just the primary.
-Joe has multiple calendars (personal, work, birthdays, shared, etc.) and
-events on secondary calendars are frequently missed.
+The user may have multiple calendars (personal, work, birthdays, shared, etc.)
+and events on secondary calendars are frequently missed.
 
 ## Steps
 
@@ -35,7 +35,7 @@ events on secondary calendars are frequently missed.
 ## Rules
 
 - Never skip a calendar — even if the name looks irrelevant, it may contain
-  events Joe cares about
+  relevant events
 - If a calendar API call fails, note which calendar failed and continue with
   the others — don't abort the whole check
 - For conflict checking, flag any overlapping events across all calendars
