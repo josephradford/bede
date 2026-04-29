@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from bede_data.api.goals import router as goals_router
 from bede_data.api.health import router as health_router
 from bede_data.api.location import router as location_router
 from bede_data.api.memories import router as memories_router
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
     app.include_router(location_router)
     app.include_router(weather_router)
     app.include_router(memories_router)
+    app.include_router(goals_router)
 
     @app.get("/health")
     def health_check():
