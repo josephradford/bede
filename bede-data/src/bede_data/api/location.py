@@ -39,14 +39,24 @@ async def get_location_summary(
     stops = []
     for c in clusters:
         name = await reverse_geocode(c["lat"], c["lon"])
-        stops.append({
-            "name": name,
-            "lat": c["lat"],
-            "lon": c["lon"],
-            "arrived": datetime.fromtimestamp(c["arrived_tst"], tz=tz_info).isoformat() if isinstance(c["arrived_tst"], (int, float)) else c["arrived_tst"],
-            "departed": datetime.fromtimestamp(c["departed_tst"], tz=tz_info).isoformat() if isinstance(c["departed_tst"], (int, float)) else c["departed_tst"],
-            "point_count": c["point_count"],
-        })
+        stops.append(
+            {
+                "name": name,
+                "lat": c["lat"],
+                "lon": c["lon"],
+                "arrived": datetime.fromtimestamp(
+                    c["arrived_tst"], tz=tz_info
+                ).isoformat()
+                if isinstance(c["arrived_tst"], (int, float))
+                else c["arrived_tst"],
+                "departed": datetime.fromtimestamp(
+                    c["departed_tst"], tz=tz_info
+                ).isoformat()
+                if isinstance(c["departed_tst"], (int, float))
+                else c["departed_tst"],
+                "point_count": c["point_count"],
+            }
+        )
 
     return {"date": d, "stops": stops}
 

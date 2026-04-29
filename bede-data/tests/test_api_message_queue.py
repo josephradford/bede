@@ -15,7 +15,9 @@ def test_list_pending_messages(client):
 
 
 def test_process_message(client):
-    resp = client.post("/api/message-queue", json={"message": "Hello", "source": "telegram"})
+    resp = client.post(
+        "/api/message-queue", json={"message": "Hello", "source": "telegram"}
+    )
     msg_id = resp.json()["id"]
     response = client.put(f"/api/message-queue/{msg_id}", json={"status": "done"})
     assert response.status_code == 200

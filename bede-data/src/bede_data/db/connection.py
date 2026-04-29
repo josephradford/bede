@@ -13,6 +13,7 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    """Create all tables (idempotent) and set WAL mode for concurrent read access."""
     conn = get_connection()
     try:
         conn.execute("PRAGMA journal_mode=WAL")
@@ -29,6 +30,7 @@ def init_db() -> None:
 
 
 def get_db() -> Generator[sqlite3.Connection, None, None]:
+    """FastAPI dependency that yields a DB connection and closes it after the request."""
     conn = get_connection()
     try:
         yield conn

@@ -12,6 +12,7 @@ _SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 def _scan_sessions() -> list[dict]:
+    """Walk the sessions directory for subdirectories containing session.jsonl files. Returns lightweight metadata (id, message count, first timestamp) without loading full transcripts."""
     sessions_path = Path(settings.claude_sessions_dir)
     if not sessions_path.exists():
         return []
@@ -38,11 +39,13 @@ def _scan_sessions() -> list[dict]:
                         pass
                 line_count += 1
 
-        sessions.append({
-            "session_id": session_dir.name,
-            "message_count": line_count,
-            "first_timestamp": first_line.get("timestamp") if first_line else None,
-        })
+        sessions.append(
+            {
+                "session_id": session_dir.name,
+                "message_count": line_count,
+                "first_timestamp": first_line.get("timestamp") if first_line else None,
+            }
+        )
 
     return sessions
 

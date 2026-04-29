@@ -22,9 +22,10 @@ def _parse_datetime(date_str: str) -> str:
 
 
 def _parse_sleep_phase(value: str) -> str:
+    """Strip Apple Health's HKCategoryValueSleepAnalysis prefix to get just the phase name (e.g. 'inBed', 'asleep')."""
     prefix = "HKCategoryValueSleepAnalysis."
     if value.startswith(prefix):
-        return value[len(prefix):]
+        return value[len(prefix) :]
     return value
 
 
@@ -43,6 +44,7 @@ SPECIAL_METRICS = {"sleep_analysis", "medication_record", "state_of_mind"}
 
 
 def parse_health_payload(payload: dict) -> dict:
+    """Parse an Apple Health Export JSON payload into table-ready row dicts. Special metrics (sleep, medications, state of mind) are routed to dedicated tables; everything else goes to health_metrics as a generic name/value pair."""
     result = {
         "health_metrics": [],
         "sleep_phases": [],
@@ -75,9 +77,7 @@ def parse_health_payload(payload: dict) -> dict:
                             "start_time": _parse_datetime(
                                 phase_entry.get("startDate", "")
                             ),
-                            "end_time": _parse_datetime(
-                                phase_entry.get("endDate", "")
-                            ),
+                            "end_time": _parse_datetime(phase_entry.get("endDate", "")),
                             "source": source,
                         }
                     )

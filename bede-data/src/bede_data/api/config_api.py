@@ -15,6 +15,7 @@ def _now() -> str:
 
 # ---- Schedules ----
 
+
 class ScheduleCreate(BaseModel):
     task_name: str
     cron_expression: str
@@ -40,8 +41,17 @@ def create_schedule(body: ScheduleCreate, conn: sqlite3.Connection = Depends(get
     cursor = conn.execute(
         """INSERT INTO schedules (task_name, cron_expression, prompt, model, timeout_seconds, interactive, enabled, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (body.task_name, body.cron_expression, body.prompt, body.model,
-         body.timeout_seconds, int(body.interactive), int(body.enabled), now, now),
+        (
+            body.task_name,
+            body.cron_expression,
+            body.prompt,
+            body.model,
+            body.timeout_seconds,
+            int(body.interactive),
+            int(body.enabled),
+            now,
+            now,
+        ),
     )
     conn.commit()
     return _get_schedule(conn, cursor.lastrowid)
@@ -60,7 +70,9 @@ def list_schedules(conn: sqlite3.Connection = Depends(get_db)):
 
 
 @router.put("/schedules/{schedule_id}")
-def update_schedule(schedule_id: int, body: ScheduleUpdate, conn: sqlite3.Connection = Depends(get_db)):
+def update_schedule(
+    schedule_id: int, body: ScheduleUpdate, conn: sqlite3.Connection = Depends(get_db)
+):
     existing = _get_schedule(conn, schedule_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Schedule not found")
@@ -76,7 +88,10 @@ def update_schedule(schedule_id: int, body: ScheduleUpdate, conn: sqlite3.Connec
         updates["enabled"] = int(body.enabled)
 
     set_clause = ", ".join(f"{k} = ?" for k in updates)
-    conn.execute(f"UPDATE schedules SET {set_clause} WHERE id = ?", [*updates.values(), schedule_id])
+    conn.execute(
+        f"UPDATE schedules SET {set_clause} WHERE id = ?",
+        [*updates.values(), schedule_id],
+    )
     conn.commit()
     return _get_schedule(conn, schedule_id)
 
@@ -97,12 +112,15 @@ def _get_schedule(conn: sqlite3.Connection, sid: int) -> dict | None:
 
 # ---- Settings (key-value) ----
 
+
 class SettingValue(BaseModel):
     value: str
 
 
 @router.put("/settings/{key}")
-def set_setting(key: str, body: SettingValue, conn: sqlite3.Connection = Depends(get_db)):
+def set_setting(
+    key: str, body: SettingValue, conn: sqlite3.Connection = Depends(get_db)
+):
     conn.execute(
         "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
         (key, body.value, _now()),
@@ -113,7 +131,9 @@ def set_setting(key: str, body: SettingValue, conn: sqlite3.Connection = Depends
 
 @router.get("/settings/{key}")
 def get_setting(key: str, conn: sqlite3.Connection = Depends(get_db)):
-    cursor = conn.execute("SELECT key, value, updated_at FROM settings WHERE key = ?", (key,))
+    cursor = conn.execute(
+        "SELECT key, value, updated_at FROM settings WHERE key = ?", (key,)
+    )
     row = cursor.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Setting not found")
@@ -128,6 +148,7 @@ def list_settings(conn: sqlite3.Connection = Depends(get_db)):
 
 # ---- Monitored Items ----
 
+
 class MonitoredItemCreate(BaseModel):
     category: str
     name: str
@@ -141,7 +162,9 @@ class MonitoredItemUpdate(BaseModel):
 
 
 @router.post("/monitored-items", status_code=201)
-def create_monitored_item(body: MonitoredItemCreate, conn: sqlite3.Connection = Depends(get_db)):
+def create_monitored_item(
+    body: MonitoredItemCreate, conn: sqlite3.Connection = Depends(get_db)
+):
     now = _now()
     cursor = conn.execute(
         "INSERT INTO monitored_items (category, name, config, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
@@ -152,7 +175,9 @@ def create_monitored_item(body: MonitoredItemCreate, conn: sqlite3.Connection = 
 
 
 @router.get("/monitored-items")
-def list_monitored_items(category: str | None = Query(None), conn: sqlite3.Connection = Depends(get_db)):
+def list_monitored_items(
+    category: str | None = Query(None), conn: sqlite3.Connection = Depends(get_db)
+):
     query = "SELECT id, category, name, config, enabled, created_at, updated_at FROM monitored_items WHERE enabled = 1"
     params: list = []
     if category:

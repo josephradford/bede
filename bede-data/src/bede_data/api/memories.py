@@ -38,6 +38,7 @@ def create_memory(
     body: MemoryCreate,
     conn: sqlite3.Connection = Depends(get_db),
 ):
+    """Create a memory. If supersedes is set, the old memory is marked inactive and linked to this one — used for corrections that preserve history."""
     now = _now()
     cursor = conn.execute(
         """INSERT INTO memories (content, type, source_conversation, created_at)
@@ -112,6 +113,7 @@ def delete_memory(
     memory_id: int,
     conn: sqlite3.Connection = Depends(get_db),
 ):
+    """Soft-delete: marks the memory inactive rather than removing the row."""
     conn.execute("UPDATE memories SET active = 0 WHERE id = ?", (memory_id,))
     conn.commit()
     return {"status": "deleted", "id": memory_id}
@@ -122,6 +124,7 @@ def reference_memory(
     memory_id: int,
     conn: sqlite3.Connection = Depends(get_db),
 ):
+    """Touch last_referenced_at — tracks which memories are actively being used for relevance ranking."""
     now = _now()
     conn.execute(
         "UPDATE memories SET last_referenced_at = ? WHERE id = ?",

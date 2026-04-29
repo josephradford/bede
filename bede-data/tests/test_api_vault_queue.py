@@ -14,20 +14,32 @@ def test_enqueue_journal(client):
 
 
 def test_list_queue(client):
-    client.post("/api/vault-queue", json={"content_type": "journal", "content": "Entry 1", "vault_path": "a.md"})
-    client.post("/api/vault-queue", json={"content_type": "capture", "content": "Idea", "vault_path": "b.md"})
+    client.post(
+        "/api/vault-queue",
+        json={"content_type": "journal", "content": "Entry 1", "vault_path": "a.md"},
+    )
+    client.post(
+        "/api/vault-queue",
+        json={"content_type": "capture", "content": "Idea", "vault_path": "b.md"},
+    )
     response = client.get("/api/vault-queue")
     assert len(response.json()["items"]) == 2
 
 
 def test_list_queue_filter_status(client):
-    client.post("/api/vault-queue", json={"content_type": "journal", "content": "Entry", "vault_path": "a.md"})
+    client.post(
+        "/api/vault-queue",
+        json={"content_type": "journal", "content": "Entry", "vault_path": "a.md"},
+    )
     response = client.get("/api/vault-queue", params={"status": "pending"})
     assert len(response.json()["items"]) == 1
 
 
 def test_update_queue_item_published(client):
-    resp = client.post("/api/vault-queue", json={"content_type": "journal", "content": "Entry", "vault_path": "a.md"})
+    resp = client.post(
+        "/api/vault-queue",
+        json={"content_type": "journal", "content": "Entry", "vault_path": "a.md"},
+    )
     item_id = resp.json()["id"]
     response = client.put(
         f"/api/vault-queue/{item_id}",
@@ -39,7 +51,10 @@ def test_update_queue_item_published(client):
 
 
 def test_update_queue_item_failed(client):
-    resp = client.post("/api/vault-queue", json={"content_type": "journal", "content": "Entry", "vault_path": "a.md"})
+    resp = client.post(
+        "/api/vault-queue",
+        json={"content_type": "journal", "content": "Entry", "vault_path": "a.md"},
+    )
     item_id = resp.json()["id"]
     response = client.put(
         f"/api/vault-queue/{item_id}",

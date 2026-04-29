@@ -26,8 +26,7 @@ def test_parse_iphone_screen_time_csv():
         "date": "2026-04-29",
         "files": {
             "iphone-screentime.csv": (
-                "device,entry_type,name,seconds\n"
-                "iphone,app,Instagram,2400\n"
+                "device,entry_type,name,seconds\niphone,app,Instagram,2400\n"
             ),
         },
     }
@@ -42,7 +41,7 @@ def test_parse_safari_csv():
         "files": {
             "safari.csv": (
                 "device,domain,title,url,visited_at\n"
-                'mac,github.com,GitHub,https://github.com,2026-04-29T10:00:00Z\n'
+                "mac,github.com,GitHub,https://github.com,2026-04-29T10:00:00Z\n"
             ),
         },
     }
@@ -116,9 +115,7 @@ def test_ingest_vault_stores_data(client, db):
     payload = {
         "date": "2026-04-29",
         "files": {
-            "screentime.csv": (
-                "device,entry_type,name,seconds\n" "mac,app,Safari,3600\n"
-            ),
+            "screentime.csv": ("device,entry_type,name,seconds\nmac,app,Safari,3600\n"),
         },
     }
     response = client.post(
@@ -154,9 +151,7 @@ def test_ingest_vault_replaces_daily_data(client, db):
     payload2 = {
         "date": "2026-04-29",
         "files": {
-            "screentime.csv": (
-                "device,entry_type,name,seconds\n" "mac,app,Safari,5400\n"
-            ),
+            "screentime.csv": ("device,entry_type,name,seconds\nmac,app,Safari,5400\n"),
         },
     }
     response = client.post("/ingest/vault", json=payload2, headers=headers)

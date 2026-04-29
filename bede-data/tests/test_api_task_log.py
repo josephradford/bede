@@ -55,9 +55,30 @@ def test_log_task_failure(client):
 
 
 def test_get_task_history(client):
-    client.post("/api/tasks/log", json={"task_name": "Morning Briefing", "start_time": "2026-04-29T08:00:00Z", "status": "success"})
-    client.post("/api/tasks/log", json={"task_name": "Evening Reflection", "start_time": "2026-04-29T21:00:00Z", "status": "success"})
-    client.post("/api/tasks/log", json={"task_name": "Morning Briefing", "start_time": "2026-04-30T08:00:00Z", "status": "failure"})
+    client.post(
+        "/api/tasks/log",
+        json={
+            "task_name": "Morning Briefing",
+            "start_time": "2026-04-29T08:00:00Z",
+            "status": "success",
+        },
+    )
+    client.post(
+        "/api/tasks/log",
+        json={
+            "task_name": "Evening Reflection",
+            "start_time": "2026-04-29T21:00:00Z",
+            "status": "success",
+        },
+    )
+    client.post(
+        "/api/tasks/log",
+        json={
+            "task_name": "Morning Briefing",
+            "start_time": "2026-04-30T08:00:00Z",
+            "status": "failure",
+        },
+    )
 
     response = client.get("/api/tasks/history")
     assert response.status_code == 200
@@ -65,8 +86,24 @@ def test_get_task_history(client):
 
 
 def test_get_task_history_filter_name(client):
-    client.post("/api/tasks/log", json={"task_name": "Morning Briefing", "start_time": "2026-04-29T08:00:00Z", "status": "success"})
-    client.post("/api/tasks/log", json={"task_name": "Evening Reflection", "start_time": "2026-04-29T21:00:00Z", "status": "success"})
+    client.post(
+        "/api/tasks/log",
+        json={
+            "task_name": "Morning Briefing",
+            "start_time": "2026-04-29T08:00:00Z",
+            "status": "success",
+        },
+    )
+    client.post(
+        "/api/tasks/log",
+        json={
+            "task_name": "Evening Reflection",
+            "start_time": "2026-04-29T21:00:00Z",
+            "status": "success",
+        },
+    )
 
-    response = client.get("/api/tasks/history", params={"task_name": "Morning Briefing"})
+    response = client.get(
+        "/api/tasks/history", params={"task_name": "Morning Briefing"}
+    )
     assert len(response.json()["executions"]) == 1

@@ -17,15 +17,36 @@ def _seed_health_data(db):
     )
     db.execute(
         "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
-        ("2026-04-29", "asleepCore", 3.5, "2026-04-28T23:00:00Z", "2026-04-29T02:30:00Z", "Apple Watch"),
+        (
+            "2026-04-29",
+            "asleepCore",
+            3.5,
+            "2026-04-28T23:00:00Z",
+            "2026-04-29T02:30:00Z",
+            "Apple Watch",
+        ),
     )
     db.execute(
         "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
-        ("2026-04-29", "asleepDeep", 1.5, "2026-04-29T02:30:00Z", "2026-04-29T04:00:00Z", "Apple Watch"),
+        (
+            "2026-04-29",
+            "asleepDeep",
+            1.5,
+            "2026-04-29T02:30:00Z",
+            "2026-04-29T04:00:00Z",
+            "Apple Watch",
+        ),
     )
     db.execute(
         "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
-        ("2026-04-29", "asleepREM", 2.0, "2026-04-29T04:00:00Z", "2026-04-29T06:00:00Z", "Apple Watch"),
+        (
+            "2026-04-29",
+            "asleepREM",
+            2.0,
+            "2026-04-29T04:00:00Z",
+            "2026-04-29T06:00:00Z",
+            "Apple Watch",
+        ),
     )
     db.execute(
         "INSERT INTO workouts (date, workout_type, duration_minutes, active_energy_kj, avg_heart_rate, max_heart_rate, start_time) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -45,7 +66,14 @@ def _seed_health_data(db):
     )
     db.execute(
         "INSERT INTO state_of_mind (date, valence, labels, context, associations, recorded_at) VALUES (?, ?, ?, ?, ?, ?)",
-        ("2026-04-29", 0.7, "Happy,Calm", "Work", "Productivity", "2026-04-29T14:00:00Z"),
+        (
+            "2026-04-29",
+            0.7,
+            "Happy,Calm",
+            "Work",
+            "Productivity",
+            "2026-04-29T14:00:00Z",
+        ),
     )
     db.execute(
         "INSERT INTO medications (date, medication, quantity, unit, recorded_at) VALUES (?, ?, ?, ?, ?)",

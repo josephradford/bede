@@ -1,4 +1,5 @@
 from bede_data.config import settings
+from bede_data.ingest.health_parser import parse_health_payload
 
 
 def test_ingest_health_rejects_missing_token(client):
@@ -24,9 +25,6 @@ def test_ingest_health_accepts_valid_token(client):
         headers={"Authorization": "Bearer correct-token"},
     )
     assert response.status_code == 200
-
-
-from bede_data.ingest.health_parser import parse_health_payload
 
 
 def test_parse_basic_metrics():

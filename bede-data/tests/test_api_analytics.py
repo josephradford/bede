@@ -5,9 +5,15 @@ def test_get_analytics_flags_empty(client):
 
 
 def test_run_analytics_and_get_flags(client, db):
-    db.execute("INSERT INTO sleep_phases (date, phase, hours, source) VALUES ('2026-04-27', 'total', 4.0, 'test')")
-    db.execute("INSERT INTO sleep_phases (date, phase, hours, source) VALUES ('2026-04-28', 'total', 5.0, 'test')")
-    db.execute("INSERT INTO sleep_phases (date, phase, hours, source) VALUES ('2026-04-29', 'total', 4.5, 'test')")
+    from datetime import date, timedelta
+
+    today = date.today()
+    for offset in range(3):
+        d = (today - timedelta(days=2 - offset)).isoformat()
+        db.execute(
+            "INSERT INTO sleep_phases (date, phase, hours, source) VALUES (?, 'total', 4.0, 'test')",
+            (d,),
+        )
     db.commit()
 
     response = client.post("/api/analytics/run")
@@ -20,8 +26,12 @@ def test_run_analytics_and_get_flags(client, db):
 
 
 def test_get_flags_filter_severity(client, db):
-    db.execute("INSERT INTO analytics_flags (signal, severity, detail, data, computed_at) VALUES ('test_info', 'info', 'test', '{}', '2026-04-29T00:00:00Z')")
-    db.execute("INSERT INTO analytics_flags (signal, severity, detail, data, computed_at) VALUES ('test_alert', 'alert', 'test', '{}', '2026-04-29T00:00:00Z')")
+    db.execute(
+        "INSERT INTO analytics_flags (signal, severity, detail, data, computed_at) VALUES ('test_info', 'info', 'test', '{}', '2026-04-29T00:00:00Z')"
+    )
+    db.execute(
+        "INSERT INTO analytics_flags (signal, severity, detail, data, computed_at) VALUES ('test_alert', 'alert', 'test', '{}', '2026-04-29T00:00:00Z')"
+    )
     db.commit()
 
     response = client.get("/api/analytics/flags", params={"severity": "alert"})
@@ -31,7 +41,9 @@ def test_get_flags_filter_severity(client, db):
 
 
 def test_acknowledge_flag(client, db):
-    db.execute("INSERT INTO analytics_flags (signal, severity, detail, data, computed_at) VALUES ('test', 'info', 'test', '{}', '2026-04-29T00:00:00Z')")
+    db.execute(
+        "INSERT INTO analytics_flags (signal, severity, detail, data, computed_at) VALUES ('test', 'info', 'test', '{}', '2026-04-29T00:00:00Z')"
+    )
     db.commit()
     flag_id = db.execute("SELECT id FROM analytics_flags").fetchone()["id"]
 

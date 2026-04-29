@@ -43,8 +43,13 @@ def test_list_memories_filter_type(client):
 
 
 def test_list_memories_search(client):
-    client.post("/api/memories", json={"content": "Training for a half marathon", "type": "fact"})
-    client.post("/api/memories", json={"content": "Likes Thai food", "type": "preference"})
+    client.post(
+        "/api/memories",
+        json={"content": "Training for a half marathon", "type": "fact"},
+    )
+    client.post(
+        "/api/memories", json={"content": "Likes Thai food", "type": "preference"}
+    )
     response = client.get("/api/memories", params={"search": "marathon"})
     assert response.status_code == 200
     data = response.json()
@@ -52,9 +57,13 @@ def test_list_memories_search(client):
 
 
 def test_update_memory(client):
-    resp = client.post("/api/memories", json={"content": "Training for 10k", "type": "fact"})
+    resp = client.post(
+        "/api/memories", json={"content": "Training for 10k", "type": "fact"}
+    )
     mem_id = resp.json()["id"]
-    response = client.put(f"/api/memories/{mem_id}", json={"content": "Training for half marathon"})
+    response = client.put(
+        f"/api/memories/{mem_id}", json={"content": "Training for half marathon"}
+    )
     assert response.status_code == 200
     assert response.json()["content"] == "Training for half marathon"
 
@@ -70,11 +79,17 @@ def test_delete_memory(client):
 
 
 def test_correction_supersedes_previous(client):
-    resp1 = client.post("/api/memories", json={"content": "Favourite colour is blue", "type": "fact"})
+    resp1 = client.post(
+        "/api/memories", json={"content": "Favourite colour is blue", "type": "fact"}
+    )
     old_id = resp1.json()["id"]
     resp2 = client.post(
         "/api/memories",
-        json={"content": "Favourite colour is green", "type": "correction", "supersedes": old_id},
+        json={
+            "content": "Favourite colour is green",
+            "type": "correction",
+            "supersedes": old_id,
+        },
     )
     assert resp2.status_code == 201
 
@@ -85,7 +100,9 @@ def test_correction_supersedes_previous(client):
 
 
 def test_reference_memory(client):
-    resp = client.post("/api/memories", json={"content": "Likes camping", "type": "fact"})
+    resp = client.post(
+        "/api/memories", json={"content": "Likes camping", "type": "fact"}
+    )
     mem_id = resp.json()["id"]
     response = client.post(f"/api/memories/{mem_id}/reference")
     assert response.status_code == 200

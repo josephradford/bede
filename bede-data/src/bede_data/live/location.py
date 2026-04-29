@@ -8,14 +8,20 @@ EARTH_RADIUS_M = 6_371_000
 
 
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in metres between two lat/lon points."""
     rlat1, rlon1, rlat2, rlon2 = map(math.radians, [lat1, lon1, lat2, lon2])
     dlat = rlat2 - rlat1
     dlon = rlon2 - rlon1
-    a = math.sin(dlat / 2) ** 2 + math.cos(rlat1) * math.cos(rlat2) * math.sin(dlon / 2) ** 2
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(rlat1) * math.cos(rlat2) * math.sin(dlon / 2) ** 2
+    )
     return 2 * EARTH_RADIUS_M * math.asin(math.sqrt(a))
 
 
 class GeoCache:
+    """In-memory cache for reverse geocode results, keyed by coordinates rounded to `precision` decimal places. Avoids redundant Nominatim calls for nearby points."""
+
     def __init__(self, precision: int = 3):
         self._cache: dict[tuple[float, float], str] = {}
         self._precision = precision
@@ -38,6 +44,7 @@ def cluster_points(
     radius_m: float = 200,
     gap_seconds: int = 300,
 ) -> list[dict]:
+    """Group OwnTracks location points into stops. A new cluster starts when a point is more than radius_m from the current centroid or more than gap_seconds after the last point. The centroid is a running average of all points in the cluster."""
     if not points:
         return []
 
@@ -105,6 +112,7 @@ async def fetch_owntracks_points(from_ts: int, to_ts: int) -> list[dict]:
 
 
 async def reverse_geocode(lat: float, lon: float) -> str:
+    """Resolve lat/lon to a place name via Nominatim, with GeoCache to deduplicate nearby lookups."""
     cached = _geocache.get(lat, lon)
     if cached:
         return cached

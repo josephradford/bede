@@ -12,6 +12,7 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 
 def _upsert_rows(conn: sqlite3.Connection, table: str, rows: list[dict]) -> int:
+    """INSERT OR REPLACE rows into the given table. Column names come from the first row's keys. Does not commit — caller is responsible for committing the transaction."""
     if not rows:
         return 0
     columns = list(rows[0].keys())
@@ -23,11 +24,20 @@ def _upsert_rows(conn: sqlite3.Connection, table: str, rows: list[dict]) -> int:
     return len(rows)
 
 
-def _replace_daily(conn: sqlite3.Connection, table: str, date: str, device: str | None, rows: list[dict]) -> int:
+def _replace_daily(
+    conn: sqlite3.Connection,
+    table: str,
+    date: str,
+    device: str | None,
+    rows: list[dict],
+) -> int:
+    """Delete all existing rows for the date (and device, if given) then insert the new rows. Used for data sources like screen time where each export is a complete daily snapshot."""
     if not rows:
         return 0
     if device:
-        conn.execute(f"DELETE FROM [{table}] WHERE date = ? AND device = ?", (date, device))
+        conn.execute(
+            f"DELETE FROM [{table}] WHERE date = ? AND device = ?", (date, device)
+        )
     else:
         conn.execute(f"DELETE FROM [{table}] WHERE date = ?", (date,))
     return _upsert_rows(conn, table, rows)

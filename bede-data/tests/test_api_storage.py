@@ -1,5 +1,7 @@
 def test_get_storage_stats(client, db):
-    db.execute("INSERT INTO health_metrics (date, metric, value, source) VALUES ('2026-04-29', 'steps', 8000, 'test')")
+    db.execute(
+        "INSERT INTO health_metrics (date, metric, value, source) VALUES ('2026-04-29', 'steps', 8000, 'test')"
+    )
     db.execute("INSERT INTO memories (content, type) VALUES ('test', 'fact')")
     db.commit()
 

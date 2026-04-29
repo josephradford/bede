@@ -102,6 +102,7 @@ SESSION_META_RE = re.compile(r"^- (\w+): (.+)$")
 
 
 def _parse_sessions(date: str, content: str, name_field: str) -> list[dict]:
+    """Parse markdown session summaries (## Header / - Key: Value / body text). name_field controls whether the header maps to 'project' (claude) or 'task_name' (bede)."""
     sessions = []
     current = None
 
@@ -143,6 +144,7 @@ SCREEN_TIME_FILES = {"screentime.csv", "iphone-screentime.csv"}
 
 
 def parse_vault_payload(payload: dict) -> dict:
+    """Parse a vault ingest payload containing {date, files: {filename: content}}. Files are routed by filename prefix to the appropriate CSV or markdown parser."""
     date = payload.get("date", "")
     files = payload.get("files", {})
     result = {
@@ -165,13 +167,9 @@ def parse_vault_payload(payload: dict) -> dict:
         elif filename.startswith("podcasts"):
             result["podcasts"].extend(_parse_podcasts(date, content))
         elif filename.startswith("claude-sessions"):
-            result["claude_sessions"].extend(
-                _parse_sessions(date, content, "project")
-            )
+            result["claude_sessions"].extend(_parse_sessions(date, content, "project"))
         elif filename.startswith("bede-sessions"):
-            result["bede_sessions"].extend(
-                _parse_sessions(date, content, "task_name")
-            )
+            result["bede_sessions"].extend(_parse_sessions(date, content, "task_name"))
         elif filename.startswith("music"):
             result["music_listens"].extend(_parse_music(date, content))
 

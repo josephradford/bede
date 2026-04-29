@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import pytest
 
@@ -14,8 +13,20 @@ def sessions_dir(tmp_path):
     session_dir.mkdir()
     jsonl_file = session_dir / "session.jsonl"
     lines = [
-        json.dumps({"type": "human", "message": "Hello Bede", "timestamp": "2026-04-29T08:00:00Z"}),
-        json.dumps({"type": "assistant", "message": "Good morning!", "timestamp": "2026-04-29T08:00:05Z"}),
+        json.dumps(
+            {
+                "type": "human",
+                "message": "Hello Bede",
+                "timestamp": "2026-04-29T08:00:00Z",
+            }
+        ),
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": "Good morning!",
+                "timestamp": "2026-04-29T08:00:05Z",
+            }
+        ),
     ]
     jsonl_file.write_text("\n".join(lines))
 
@@ -23,7 +34,13 @@ def sessions_dir(tmp_path):
     session_dir2.mkdir()
     jsonl_file2 = session_dir2 / "session.jsonl"
     lines2 = [
-        json.dumps({"type": "human", "message": "What's the weather?", "timestamp": "2026-04-29T14:00:00Z"}),
+        json.dumps(
+            {
+                "type": "human",
+                "message": "What's the weather?",
+                "timestamp": "2026-04-29T14:00:00Z",
+            }
+        ),
     ]
     jsonl_file2.write_text("\n".join(lines2))
 

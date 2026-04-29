@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from bede_data.app import create_app
 from bede_data.config import settings
-from bede_data.db.connection import get_db, init_db
+from bede_data.db.connection import init_db
 
 
 @pytest.fixture(autouse=True)

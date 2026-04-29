@@ -1,0 +1,32 @@
+name: bede-data CI
+
+on:
+  pull_request:
+    paths:
+      - "bede-data/**"
+  push:
+    branches: [main]
+    paths:
+      - "bede-data/**"
+
+defaults:
+  run:
+    working-directory: bede-data
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --dev
+      - run: uv run ruff check src/ tests/
+      - run: uv run ruff format --check src/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --dev
+      - run: uv run pytest tests/ -v --tb=short

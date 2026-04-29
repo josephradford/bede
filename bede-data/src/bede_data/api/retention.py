@@ -8,6 +8,7 @@ from bede_data.db.connection import get_db
 
 router = APIRouter(prefix="/api/retention", tags=["retention"])
 
+# Maps table name → date column used for age-based deletion. Only tables listed here can have retention policies applied.
 RETAINABLE_TABLES = {
     "health_metrics": "date",
     "sleep_phases": "date",
@@ -33,6 +34,7 @@ class RetentionPolicy(BaseModel):
 
 @router.post("/cleanup")
 def run_cleanup(conn: sqlite3.Connection = Depends(get_db)):
+    """Delete rows older than each table's configured retention period. Only acts on tables in RETAINABLE_TABLES that have a policy set."""
     cursor = conn.execute("SELECT data_type, retention_days FROM retention_policies")
     policies = {row["data_type"]: row["retention_days"] for row in cursor.fetchall()}
 
@@ -41,8 +43,12 @@ def run_cleanup(conn: sqlite3.Connection = Depends(get_db)):
         days = policies.get(table)
         if days is None:
             continue
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
-        result = conn.execute(f"DELETE FROM [{table}] WHERE [{date_col}] < ?", (cutoff,))
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime(
+            "%Y-%m-%d"
+        )
+        result = conn.execute(
+            f"DELETE FROM [{table}] WHERE [{date_col}] < ?", (cutoff,)
+        )
         total_deleted += result.rowcount
 
     conn.commit()

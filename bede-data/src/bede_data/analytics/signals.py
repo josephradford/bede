@@ -18,6 +18,7 @@ def compute_sleep_flags(
     window_days: int = 3,
     reference_date: str | None = None,
 ) -> list[dict]:
+    """Flag 'sleep_declining' if average total sleep is below target over the window. Requires data for every day in the window — partial data returns no flags."""
     ref = _today_str(reference_date)
     start, end = _date_range(ref, window_days)
     cursor = conn.execute(
@@ -29,12 +30,18 @@ def compute_sleep_flags(
         return []
     avg = sum(r["total"] for r in rows) / len(rows)
     if avg < target_hours:
-        return [{
-            "signal": "sleep_declining",
-            "severity": "concern",
-            "detail": f"avg {avg:.1f}h vs {target_hours}h target over {window_days} days",
-            "data": {"avg_hours": round(avg, 1), "target_hours": target_hours, "window_days": window_days},
-        }]
+        return [
+            {
+                "signal": "sleep_declining",
+                "severity": "concern",
+                "detail": f"avg {avg:.1f}h vs {target_hours}h target over {window_days} days",
+                "data": {
+                    "avg_hours": round(avg, 1),
+                    "target_hours": target_hours,
+                    "window_days": window_days,
+                },
+            }
+        ]
     return []
 
 
@@ -43,23 +50,31 @@ def compute_activity_flags(
     gap_threshold_days: int = 5,
     reference_date: str | None = None,
 ) -> list[dict]:
+    """Flag 'exercise_gap' if no workouts recorded in the last N days."""
     ref = _today_str(reference_date)
-    cursor = conn.execute(
-        "SELECT MAX(date) as last_date FROM workouts"
-    )
+    cursor = conn.execute("SELECT MAX(date) as last_date FROM workouts")
     row = cursor.fetchone()
     if not row or not row["last_date"]:
-        return [{"signal": "exercise_gap", "severity": "nudge", "detail": "No workouts recorded", "data": {}}]
+        return [
+            {
+                "signal": "exercise_gap",
+                "severity": "nudge",
+                "detail": "No workouts recorded",
+                "data": {},
+            }
+        ]
     last = datetime.strptime(row["last_date"], "%Y-%m-%d").date()
     today = datetime.strptime(ref, "%Y-%m-%d").date()
     gap = (today - last).days
     if gap >= gap_threshold_days:
-        return [{
-            "signal": "exercise_gap",
-            "severity": "nudge",
-            "detail": f"{gap} days since last workout",
-            "data": {"days_since": gap},
-        }]
+        return [
+            {
+                "signal": "exercise_gap",
+                "severity": "nudge",
+                "detail": f"{gap} days since last workout",
+                "data": {"days_since": gap},
+            }
+        ]
     return []
 
 
@@ -68,6 +83,7 @@ def compute_goal_flags(
     stale_threshold_days: int = 14,
     reference_date: str | None = None,
 ) -> list[dict]:
+    """Flag 'goal_stale' for goals not updated in N days, and 'goal_drifting' for goals with deadlines within 14 days but no update in the last 7."""
     ref = _today_str(reference_date)
     ref_date = datetime.strptime(ref, "%Y-%m-%d").date()
     cutoff = (ref_date - timedelta(days=stale_threshold_days)).isoformat()
@@ -78,14 +94,22 @@ def compute_goal_flags(
     )
     flags = []
     for row in cursor.fetchall():
-        updated = datetime.fromisoformat(row["updated_at"].replace("Z", "+00:00")).date()
+        updated = datetime.fromisoformat(
+            row["updated_at"].replace("Z", "+00:00")
+        ).date()
         days_inactive = (ref_date - updated).days
-        flags.append({
-            "signal": "goal_stale",
-            "severity": "nudge",
-            "detail": f"'{row['name']}' inactive for {days_inactive} days",
-            "data": {"goal_id": row["id"], "goal_name": row["name"], "days_inactive": days_inactive},
-        })
+        flags.append(
+            {
+                "signal": "goal_stale",
+                "severity": "nudge",
+                "detail": f"'{row['name']}' inactive for {days_inactive} days",
+                "data": {
+                    "goal_id": row["id"],
+                    "goal_name": row["name"],
+                    "days_inactive": days_inactive,
+                },
+            }
+        )
 
     cursor = conn.execute(
         "SELECT id, name, deadline, updated_at FROM goals WHERE status = 'active' AND deadline IS NOT NULL AND deadline > ?",
@@ -94,16 +118,25 @@ def compute_goal_flags(
     for row in cursor.fetchall():
         deadline = datetime.strptime(row["deadline"], "%Y-%m-%d").date()
         days_remaining = (deadline - ref_date).days
-        updated = datetime.fromisoformat(row["updated_at"].replace("Z", "+00:00")).date()
+        updated = datetime.fromisoformat(
+            row["updated_at"].replace("Z", "+00:00")
+        ).date()
         days_since_update = (ref_date - updated).days
 
         if days_remaining <= 14 and days_since_update >= 7:
-            flags.append({
-                "signal": "goal_drifting",
-                "severity": "concern",
-                "detail": f"'{row['name']}' deadline in {days_remaining} days, no update for {days_since_update} days",
-                "data": {"goal_id": row["id"], "goal_name": row["name"], "days_remaining": days_remaining, "days_since_update": days_since_update},
-            })
+            flags.append(
+                {
+                    "signal": "goal_drifting",
+                    "severity": "concern",
+                    "detail": f"'{row['name']}' deadline in {days_remaining} days, no update for {days_since_update} days",
+                    "data": {
+                        "goal_id": row["id"],
+                        "goal_name": row["name"],
+                        "days_remaining": days_remaining,
+                        "days_since_update": days_since_update,
+                    },
+                }
+            )
 
     return flags
 
@@ -114,6 +147,7 @@ def compute_screen_time_flags(
     window_days: int = 7,
     reference_date: str | None = None,
 ) -> list[dict]:
+    """Flag 'passive_screen_up' per app if usage in the second half of the window exceeds the first half by the threshold percentage. Splits the window at the midpoint to compare early vs recent usage."""
     ref = _today_str(reference_date)
     start, end = _date_range(ref, window_days)
     ref_date = datetime.strptime(ref, "%Y-%m-%d").date()
@@ -137,12 +171,14 @@ def compute_screen_time_flags(
         if early_total > 0:
             pct_change = ((late_total - early_total) / early_total) * 100
             if pct_change >= spike_threshold_pct:
-                flags.append({
-                    "signal": "passive_screen_up",
-                    "severity": "info",
-                    "detail": f"{app_name} +{pct_change:.0f}% this week",
-                    "data": {"app": app_name, "pct_change": round(pct_change, 1)},
-                })
+                flags.append(
+                    {
+                        "signal": "passive_screen_up",
+                        "severity": "info",
+                        "detail": f"{app_name} +{pct_change:.0f}% this week",
+                        "data": {"app": app_name, "pct_change": round(pct_change, 1)},
+                    }
+                )
     return flags
 
 
@@ -150,8 +186,11 @@ def compute_medication_flags(
     conn: sqlite3.Connection,
     reference_date: str | None = None,
 ) -> list[dict]:
+    """Flag 'medication_missed' for any medication seen historically but not logged yesterday or today."""
     ref = _today_str(reference_date)
-    yesterday = (datetime.strptime(ref, "%Y-%m-%d").date() - timedelta(days=1)).isoformat()
+    yesterday = (
+        datetime.strptime(ref, "%Y-%m-%d").date() - timedelta(days=1)
+    ).isoformat()
 
     cursor = conn.execute(
         "SELECT DISTINCT medication FROM medications WHERE date >= ?",
@@ -159,23 +198,24 @@ def compute_medication_flags(
     )
     recent_meds = {row["medication"] for row in cursor.fetchall()}
 
-    cursor = conn.execute(
-        "SELECT DISTINCT medication FROM medications"
-    )
+    cursor = conn.execute("SELECT DISTINCT medication FROM medications")
     all_meds = {row["medication"] for row in cursor.fetchall()}
 
     flags = []
     for med in all_meds - recent_meds:
         cursor2 = conn.execute(
-            "SELECT MAX(date) as last_date FROM medications WHERE medication = ?", (med,)
+            "SELECT MAX(date) as last_date FROM medications WHERE medication = ?",
+            (med,),
         )
         last = cursor2.fetchone()
-        flags.append({
-            "signal": "medication_missed",
-            "severity": "alert",
-            "detail": f"{med} not logged since {last['last_date'] if last else 'unknown'}",
-            "data": {"medication": med},
-        })
+        flags.append(
+            {
+                "signal": "medication_missed",
+                "severity": "alert",
+                "detail": f"{med} not logged since {last['last_date'] if last else 'unknown'}",
+                "data": {"medication": med},
+            }
+        )
     return flags
 
 
@@ -184,6 +224,7 @@ def compute_bedtime_flags(
     drift_threshold_minutes: int = 30,
     window_days: int = 7,
 ) -> list[dict]:
+    """Flag 'bedtime_drifting' if average bedtime in the recent half of the window differs from the earlier half by the threshold. Uses earliest sleep start_time per day; hours before noon are treated as after-midnight (e.g. 1am = 25.0)."""
     cursor = conn.execute(
         "SELECT date, MIN(start_time) as bedtime FROM sleep_phases WHERE start_time IS NOT NULL GROUP BY date ORDER BY date DESC LIMIT ?",
         (window_days,),
@@ -203,15 +244,19 @@ def compute_bedtime_flags(
             return 23.0
 
     bedtimes = [_extract_hour_min(r["bedtime"]) for r in rows]
-    early_avg = sum(bedtimes[len(bedtimes)//2:]) / len(bedtimes[len(bedtimes)//2:])
-    late_avg = sum(bedtimes[:len(bedtimes)//2]) / len(bedtimes[:len(bedtimes)//2])
+    early_avg = sum(bedtimes[len(bedtimes) // 2 :]) / len(
+        bedtimes[len(bedtimes) // 2 :]
+    )
+    late_avg = sum(bedtimes[: len(bedtimes) // 2]) / len(bedtimes[: len(bedtimes) // 2])
     drift_minutes = (late_avg - early_avg) * 60
 
     if abs(drift_minutes) >= drift_threshold_minutes:
-        return [{
-            "signal": "bedtime_drifting",
-            "severity": "info",
-            "detail": f"avg bedtime shifted {abs(drift_minutes):.0f}min {'later' if drift_minutes > 0 else 'earlier'}",
-            "data": {"drift_minutes": round(drift_minutes, 1)},
-        }]
+        return [
+            {
+                "signal": "bedtime_drifting",
+                "severity": "info",
+                "detail": f"avg bedtime shifted {abs(drift_minutes):.0f}min {'later' if drift_minutes > 0 else 'earlier'}",
+                "data": {"drift_minutes": round(drift_minutes, 1)},
+            }
+        ]
     return []

@@ -1,6 +1,5 @@
 import httpx
 
-from bede_data.config import settings
 
 AIR_QUALITY_URL = "https://data.airquality.nsw.gov.au/api/Data/get_SiteDetails"
 

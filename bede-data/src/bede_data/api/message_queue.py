@@ -58,7 +58,9 @@ def list_messages(
 
 
 @router.put("/{msg_id}")
-def update_message(msg_id: int, body: MsgUpdate, conn: sqlite3.Connection = Depends(get_db)):
+def update_message(
+    msg_id: int, body: MsgUpdate, conn: sqlite3.Connection = Depends(get_db)
+):
     existing = _get_msg(conn, msg_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Message not found")

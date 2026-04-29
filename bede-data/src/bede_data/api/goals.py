@@ -55,7 +55,14 @@ def create_goal(
     cursor = conn.execute(
         """INSERT INTO goals (name, description, deadline, measurable_indicators, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?)""",
-        (body.name, body.description, body.deadline, body.measurable_indicators, now, now),
+        (
+            body.name,
+            body.description,
+            body.deadline,
+            body.measurable_indicators,
+            now,
+            now,
+        ),
     )
     conn.commit()
     return _get_goal(conn, cursor.lastrowid)
