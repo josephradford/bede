@@ -40,6 +40,15 @@ def _hours_between(start_str: str, end_str: str) -> float:
     return 0.0
 
 
+def _extract_qty(value) -> float | None:
+    """Extract qty from a Health Export field that may be a dict, a list of dicts, or None."""
+    if isinstance(value, dict):
+        return value.get("qty")
+    if isinstance(value, list) and value:
+        return value[0].get("qty")
+    return None
+
+
 SPECIAL_METRICS = {"sleep_analysis", "medication_record", "state_of_mind"}
 
 
@@ -122,9 +131,9 @@ def parse_health_payload(payload: dict) -> dict:
                 "date": _parse_date(start_str),
                 "workout_type": workout.get("name", ""),
                 "duration_minutes": round(duration, 1),
-                "active_energy_kj": (workout.get("activeEnergy") or {}).get("qty"),
-                "avg_heart_rate": (workout.get("avgHeartRate") or {}).get("qty"),
-                "max_heart_rate": (workout.get("maxHeartRate") or {}).get("qty"),
+                "active_energy_kj": _extract_qty(workout.get("activeEnergy")),
+                "avg_heart_rate": _extract_qty(workout.get("avgHeartRate")),
+                "max_heart_rate": _extract_qty(workout.get("maxHeartRate")),
                 "start_time": _parse_datetime(start_str),
             }
         )
