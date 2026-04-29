@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -6,6 +7,8 @@ from fastapi import APIRouter, HTTPException
 from bede_data.config import settings
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
+
+_SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 def _scan_sessions() -> list[dict]:
@@ -51,6 +54,8 @@ def list_conversations():
 
 @router.get("/{session_id}")
 def get_conversation(session_id: str):
+    if not _SESSION_ID_RE.match(session_id):
+        raise HTTPException(status_code=400, detail="Invalid session ID")
     jsonl_file = Path(settings.claude_sessions_dir) / session_id / "session.jsonl"
     if not jsonl_file.exists():
         raise HTTPException(status_code=404, detail="Session not found")

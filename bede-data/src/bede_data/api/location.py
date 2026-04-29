@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query
 
@@ -27,12 +28,13 @@ def _date_to_timestamps(date_str: str) -> tuple[int, int]:
 @router.get("/summary")
 async def get_location_summary(
     date: str = Query(...),
-    timezone: str = Query("Australia/Sydney"),
+    tz: str = Query("Australia/Sydney"),
 ):
     d = _resolve_date(date)
     from_ts, to_ts = _date_to_timestamps(d)
     points = await fetch_owntracks_points(from_ts, to_ts)
     clusters = cluster_points(points)
+    tz_info = ZoneInfo(tz)
 
     stops = []
     for c in clusters:
@@ -41,8 +43,8 @@ async def get_location_summary(
             "name": name,
             "lat": c["lat"],
             "lon": c["lon"],
-            "arrived": datetime.fromtimestamp(c["arrived_tst"], tz=timezone).isoformat() if isinstance(c["arrived_tst"], (int, float)) else c["arrived_tst"],
-            "departed": datetime.fromtimestamp(c["departed_tst"], tz=timezone).isoformat() if isinstance(c["departed_tst"], (int, float)) else c["departed_tst"],
+            "arrived": datetime.fromtimestamp(c["arrived_tst"], tz=tz_info).isoformat() if isinstance(c["arrived_tst"], (int, float)) else c["arrived_tst"],
+            "departed": datetime.fromtimestamp(c["departed_tst"], tz=tz_info).isoformat() if isinstance(c["departed_tst"], (int, float)) else c["departed_tst"],
             "point_count": c["point_count"],
         })
 
@@ -53,7 +55,6 @@ async def get_location_summary(
 async def get_location_raw(
     from_date: str = Query(...),
     to_date: str = Query(...),
-    timezone: str = Query("Australia/Sydney"),
 ):
     from_ts, _ = _date_to_timestamps(_resolve_date(from_date))
     _, to_ts = _date_to_timestamps(_resolve_date(to_date))

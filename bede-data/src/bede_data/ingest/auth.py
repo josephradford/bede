@@ -9,7 +9,7 @@ bearer_scheme = HTTPBearer()
 def verify_ingest_token(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> str:
-    if credentials.credentials != settings.ingest_write_token:
+    if not settings.ingest_write_token or credentials.credentials != settings.ingest_write_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid bearer token",
