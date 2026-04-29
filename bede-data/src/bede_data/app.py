@@ -8,8 +8,10 @@ from bede_data.api.goals import router as goals_router
 from bede_data.api.health import router as health_router
 from bede_data.api.location import router as location_router
 from bede_data.api.memories import router as memories_router
+from bede_data.api.sessions import router as sessions_router
 from bede_data.api.task_log import router as task_log_router
 from bede_data.api.vault_data import router as vault_data_router
+from bede_data.api.vault_queue import router as vault_queue_router
 from bede_data.api.weather import router as weather_router
 from bede_data.db.connection import init_db
 from bede_data.ingest.router import router as ingest_router
@@ -33,6 +35,8 @@ def create_app() -> FastAPI:
     app.include_router(task_log_router)
     app.include_router(config_router)
     app.include_router(analytics_router)
+    app.include_router(sessions_router)
+    app.include_router(vault_queue_router)
 
     @app.get("/health")
     def health_check():
