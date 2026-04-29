@@ -1,59 +1,183 @@
-from datetime import datetime
+import json
+import re
+from datetime import datetime, timezone
+
+_MEDICATION_RE = re.compile(r"medication", re.IGNORECASE)
+
+_TS_PATTERNS = [
+    r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) ([+-]\d{4})",
+    r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})([+-]\d{2}:\d{2})",
+]
+
+
+def _parse_timestamp(ts_str: str) -> tuple[str, str] | None:
+    """Parse HAE timestamp to (local_date, utc_iso8601). HAE sends timestamps
+    as 'YYYY-MM-DD HH:MM:SS +HHMM' (local with offset)."""
+    if not ts_str:
+        return None
+    for pattern in _TS_PATTERNS:
+        m = re.match(pattern, ts_str.strip())
+        if m:
+            date_part, time_part, offset = m.groups()
+            if ":" not in offset:
+                offset = offset[:3] + ":" + offset[3:]
+            iso_str = f"{date_part}T{time_part}{offset}"
+            try:
+                dt = datetime.fromisoformat(iso_str)
+                local_date = dt.strftime("%Y-%m-%d")
+                utc_iso = dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                return local_date, utc_iso
+            except ValueError:
+                continue
+    try:
+        dt = datetime.fromisoformat(ts_str.strip())
+        local_date = dt.strftime("%Y-%m-%d")
+        utc_iso = dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return local_date, utc_iso
+    except ValueError:
+        return None
 
 
 def _parse_date(date_str: str) -> str:
-    for fmt in ("%Y-%m-%d %H:%M:%S %z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
-        try:
-            dt = datetime.strptime(date_str, fmt)
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-    return date_str[:10]
+    parsed = _parse_timestamp(date_str)
+    if parsed:
+        return parsed[0]
+    return date_str[:10] if len(date_str) >= 10 else date_str
 
 
 def _parse_datetime(date_str: str) -> str:
-    for fmt in ("%Y-%m-%d %H:%M:%S %z", "%Y-%m-%d %H:%M:%S"):
-        try:
-            dt = datetime.strptime(date_str, fmt)
-            return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-        except ValueError:
-            continue
+    parsed = _parse_timestamp(date_str)
+    if parsed:
+        return parsed[1]
     return date_str
 
 
-def _parse_sleep_phase(value: str) -> str:
-    """Strip Apple Health's HKCategoryValueSleepAnalysis prefix to get just the phase name (e.g. 'inBed', 'asleep')."""
-    prefix = "HKCategoryValueSleepAnalysis."
-    if value.startswith(prefix):
-        return value[len(prefix) :]
-    return value
-
-
 def _hours_between(start_str: str, end_str: str) -> float:
-    for fmt in ("%Y-%m-%d %H:%M:%S %z", "%Y-%m-%d %H:%M:%S"):
+    s = _parse_timestamp(start_str)
+    e = _parse_timestamp(end_str)
+    if s and e:
         try:
-            start = datetime.strptime(start_str, fmt)
-            end = datetime.strptime(end_str, fmt)
+            start = datetime.fromisoformat(s[1].replace("Z", "+00:00"))
+            end = datetime.fromisoformat(e[1].replace("Z", "+00:00"))
             return (end - start).total_seconds() / 3600
         except ValueError:
-            continue
+            pass
     return 0.0
 
 
 def _extract_qty(value) -> float | None:
-    """Extract qty from a Health Export field that may be a dict, a list of dicts, or None."""
+    """Extract qty from a field that may be a dict, list of dicts, or a scalar."""
+    if isinstance(value, (int, float)):
+        return float(value)
     if isinstance(value, dict):
         return value.get("qty")
     if isinstance(value, list) and value:
-        return value[0].get("qty")
+        return value[0].get("qty") if isinstance(value[0], dict) else None
     return None
 
 
-SPECIAL_METRICS = {"sleep_analysis", "medication_record", "state_of_mind"}
+def _process_sleep(metric: dict) -> list[dict]:
+    """Process sleep data from all HAE formats: aggregatedSleepAnalyses,
+    sleepAnalyses, and inline data[].sleepAnalysis."""
+    rows = []
+
+    analyses = metric.get("aggregatedSleepAnalyses", [])
+    if not analyses:
+        analyses = metric.get("sleepAnalyses", [])
+
+    for analysis in analyses:
+        end_ts = _parse_timestamp(
+            analysis.get("sleepEnd", "") or analysis.get("endDate", "")
+        )
+        start_ts = _parse_timestamp(
+            analysis.get("sleepStart", "") or analysis.get("startDate", "")
+        )
+        date = end_ts[0] if end_ts else (start_ts[0] if start_ts else None)
+        if not date:
+            continue
+        source = analysis.get("source") or analysis.get("sleepSource", "")
+        start_utc = start_ts[1] if start_ts else None
+        end_utc = end_ts[1] if end_ts else None
+
+        for stage in ("core", "deep", "rem", "awake", "inBed", "asleep"):
+            val = analysis.get(stage)
+            if val is not None and val != 0:
+                try:
+                    rows.append(
+                        {
+                            "date": date,
+                            "phase": stage,
+                            "hours": float(val),
+                            "start_time": start_utc,
+                            "end_time": end_utc,
+                            "source": source or None,
+                        }
+                    )
+                except (ValueError, TypeError):
+                    pass
+
+    for entry in metric.get("data", []):
+        date = _parse_date(entry.get("date", ""))
+        source = entry.get("source", "")
+
+        for phase_entry in entry.get("sleepAnalysis", []):
+            phase = phase_entry.get("value", "")
+            prefix = "HKCategoryValueSleepAnalysis."
+            if phase.startswith(prefix):
+                phase = phase[len(prefix) :]
+
+            hours = _hours_between(
+                phase_entry.get("startDate", ""), phase_entry.get("endDate", "")
+            )
+            rows.append(
+                {
+                    "date": date,
+                    "phase": phase,
+                    "hours": hours,
+                    "start_time": _parse_datetime(phase_entry.get("startDate", "")),
+                    "end_time": _parse_datetime(phase_entry.get("endDate", "")),
+                    "source": source or None,
+                }
+            )
+
+    return rows
+
+
+def _process_state_of_mind(entries: list) -> list[dict]:
+    """Process data.stateOfMind top-level array from HAE."""
+    rows = []
+    for entry in entries:
+        parsed = _parse_timestamp(entry.get("start", ""))
+        if not parsed:
+            continue
+        date, utc_iso = parsed
+        labels = entry.get("labels")
+        if isinstance(labels, list):
+            labels = json.dumps(labels) if labels else None
+        associations = entry.get("associations")
+        if isinstance(associations, list):
+            associations = json.dumps(associations) if associations else None
+        context = entry.get("context")
+        if isinstance(context, list):
+            context = json.dumps(context) if context else None
+        rows.append(
+            {
+                "date": date,
+                "valence": entry.get("valence"),
+                "labels": labels,
+                "context": context,
+                "associations": associations,
+                "recorded_at": utc_iso,
+            }
+        )
+    return rows
 
 
 def parse_health_payload(payload: dict) -> dict:
-    """Parse an Apple Health Export JSON payload into table-ready row dicts. Special metrics (sleep, medications, state of mind) are routed to dedicated tables; everything else goes to health_metrics as a generic name/value pair."""
+    """Parse an Apple Health Export JSON payload into table-ready row dicts.
+    Handles all HAE formats: aggregated sleep, inline sleep phases,
+    top-level stateOfMind, regex-matched medications, and list-typed
+    workout fields."""
     result = {
         "health_metrics": [],
         "sleep_phases": [],
@@ -66,58 +190,43 @@ def parse_health_payload(payload: dict) -> dict:
 
     for metric in data.get("metrics", []):
         name = metric.get("name", "")
+        units = metric.get("units", "")
 
-        for entry in metric.get("data", []):
-            date = _parse_date(entry.get("date", ""))
-            source = entry.get("source", "")
-
-            if name == "sleep_analysis":
-                for phase_entry in entry.get("sleepAnalysis", []):
-                    phase = _parse_sleep_phase(phase_entry.get("value", ""))
-                    hours = _hours_between(
-                        phase_entry.get("startDate", ""),
-                        phase_entry.get("endDate", ""),
-                    )
-                    result["sleep_phases"].append(
-                        {
-                            "date": date,
-                            "phase": phase,
-                            "hours": hours,
-                            "start_time": _parse_datetime(
-                                phase_entry.get("startDate", "")
-                            ),
-                            "end_time": _parse_datetime(phase_entry.get("endDate", "")),
-                            "source": source,
-                        }
-                    )
-            elif name == "medication_record":
+        if (
+            name == "sleep_analysis"
+            or metric.get("aggregatedSleepAnalyses")
+            or metric.get("sleepAnalyses")
+        ):
+            result["sleep_phases"].extend(_process_sleep(metric))
+        elif _MEDICATION_RE.search(name):
+            for entry in metric.get("data", []):
+                date = _parse_date(entry.get("date", ""))
                 result["medications"].append(
                     {
                         "date": date,
-                        "medication": entry.get("medication", ""),
+                        "medication": name,
                         "quantity": entry.get("qty"),
-                        "unit": entry.get("unit"),
+                        "unit": units or None,
                         "recorded_at": _parse_datetime(entry.get("date", "")),
                     }
                 )
-            elif name == "state_of_mind":
-                result["state_of_mind"].append(
-                    {
-                        "date": date,
-                        "valence": entry.get("valence"),
-                        "labels": entry.get("labels"),
-                        "context": entry.get("context"),
-                        "associations": entry.get("associations"),
-                        "recorded_at": _parse_datetime(entry.get("date", "")),
-                    }
-                )
-            else:
+        else:
+            for entry in metric.get("data", []):
+                date = _parse_date(entry.get("date", ""))
+                source = entry.get("source", "")
+                qty = entry.get("qty")
+                if qty is None:
+                    continue
+                try:
+                    value = float(qty)
+                except (ValueError, TypeError):
+                    continue
                 result["health_metrics"].append(
                     {
                         "date": date,
                         "metric": name,
-                        "value": entry.get("qty", 0),
-                        "source": source,
+                        "value": value,
+                        "source": source or None,
                         "recorded_at": _parse_datetime(entry.get("date", "")),
                     }
                 )
@@ -131,11 +240,15 @@ def parse_health_payload(payload: dict) -> dict:
                 "date": _parse_date(start_str),
                 "workout_type": workout.get("name", ""),
                 "duration_minutes": round(duration, 1),
-                "active_energy_kj": _extract_qty(workout.get("activeEnergy")),
+                "active_energy_kj": _extract_qty(
+                    workout.get("activeEnergy") or workout.get("activeEnergyBurned")
+                ),
                 "avg_heart_rate": _extract_qty(workout.get("avgHeartRate")),
                 "max_heart_rate": _extract_qty(workout.get("maxHeartRate")),
                 "start_time": _parse_datetime(start_str),
             }
         )
+
+    result["state_of_mind"].extend(_process_state_of_mind(data.get("stateOfMind", [])))
 
     return result

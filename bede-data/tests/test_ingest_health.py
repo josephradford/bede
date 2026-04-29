@@ -62,7 +62,7 @@ def test_parse_basic_metrics():
     assert result["health_metrics"][0]["source"] == "iPhone"
 
 
-def test_parse_sleep_analysis():
+def test_parse_sleep_inline_phases():
     payload = {
         "data": {
             "metrics": [
@@ -98,7 +98,37 @@ def test_parse_sleep_analysis():
     assert result["sleep_phases"][1]["hours"] == 1.5
 
 
-def test_parse_workouts():
+def test_parse_sleep_aggregated():
+    payload = {
+        "data": {
+            "metrics": [
+                {
+                    "name": "sleep_analysis",
+                    "aggregatedSleepAnalyses": [
+                        {
+                            "sleepStart": "2026-04-28 23:00:00 +1000",
+                            "sleepEnd": "2026-04-29 07:00:00 +1000",
+                            "source": "Apple Watch",
+                            "core": 3.5,
+                            "deep": 1.2,
+                            "rem": 1.8,
+                            "awake": 0.5,
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    phases = {p["phase"]: p["hours"] for p in result["sleep_phases"]}
+    assert phases["core"] == 3.5
+    assert phases["deep"] == 1.2
+    assert phases["rem"] == 1.8
+    assert phases["awake"] == 0.5
+    assert result["sleep_phases"][0]["date"] == "2026-04-29"
+
+
+def test_parse_workouts_dict_fields():
     payload = {
         "data": {
             "workouts": [
@@ -120,18 +150,56 @@ def test_parse_workouts():
     assert result["workouts"][0]["active_energy_kj"] == 1800
 
 
-def test_parse_medications():
+def test_parse_workouts_list_fields():
+    payload = {
+        "data": {
+            "workouts": [
+                {
+                    "name": "Walking",
+                    "start": "2026-04-29 08:00:00 +1000",
+                    "end": "2026-04-29 08:30:00 +1000",
+                    "activeEnergy": [{"qty": 500, "units": "kJ"}],
+                    "avgHeartRate": [{"qty": 110, "units": "bpm"}],
+                    "maxHeartRate": [{"qty": 130, "units": "bpm"}],
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert result["workouts"][0]["active_energy_kj"] == 500
+    assert result["workouts"][0]["avg_heart_rate"] == 110
+
+
+def test_parse_workouts_scalar_fields():
+    payload = {
+        "data": {
+            "workouts": [
+                {
+                    "name": "Yoga",
+                    "start": "2026-04-29 09:00:00 +1000",
+                    "end": "2026-04-29 10:00:00 +1000",
+                    "activeEnergy": 400.0,
+                    "avgHeartRate": 90,
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert result["workouts"][0]["active_energy_kj"] == 400.0
+    assert result["workouts"][0]["avg_heart_rate"] == 90
+
+
+def test_parse_medications_regex():
     payload = {
         "data": {
             "metrics": [
                 {
-                    "name": "medication_record",
+                    "name": "Medication_Lexapro",
+                    "units": "tablet",
                     "data": [
                         {
                             "date": "2026-04-29 08:00:00 +1000",
-                            "medication": "Lexapro",
                             "qty": 1,
-                            "unit": "tablet",
                             "source": "Health",
                         }
                     ],
@@ -141,26 +209,23 @@ def test_parse_medications():
     }
     result = parse_health_payload(payload)
     assert len(result["medications"]) == 1
-    assert result["medications"][0]["medication"] == "Lexapro"
+    assert result["medications"][0]["medication"] == "Medication_Lexapro"
     assert result["medications"][0]["quantity"] == 1
+    assert result["medications"][0]["unit"] == "tablet"
 
 
-def test_parse_state_of_mind():
+def test_parse_state_of_mind_top_level():
+    """stateOfMind is a top-level array in data, not inside metrics."""
     payload = {
         "data": {
-            "metrics": [
+            "stateOfMind": [
                 {
-                    "name": "state_of_mind",
-                    "data": [
-                        {
-                            "date": "2026-04-29 14:00:00 +1000",
-                            "valence": 0.7,
-                            "labels": "Happy,Calm",
-                            "context": "Work",
-                            "associations": "Productivity",
-                            "source": "Health",
-                        }
-                    ],
+                    "start": "2026-04-29 14:00:00 +1000",
+                    "end": "2026-04-29 14:00:00 +1000",
+                    "kind": "mood",
+                    "valence": 0.7,
+                    "labels": ["Happy", "Calm"],
+                    "associations": ["Work"],
                 }
             ]
         }
@@ -168,7 +233,26 @@ def test_parse_state_of_mind():
     result = parse_health_payload(payload)
     assert len(result["state_of_mind"]) == 1
     assert result["state_of_mind"][0]["valence"] == 0.7
-    assert result["state_of_mind"][0]["labels"] == "Happy,Calm"
+    assert result["state_of_mind"][0]["date"] == "2026-04-29"
+    import json
+
+    assert json.loads(result["state_of_mind"][0]["labels"]) == ["Happy", "Calm"]
+    assert json.loads(result["state_of_mind"][0]["associations"]) == ["Work"]
+
+
+def test_parse_skips_metrics_with_no_qty():
+    payload = {
+        "data": {
+            "metrics": [
+                {
+                    "name": "step_count",
+                    "data": [{"date": "2026-04-29 00:00:00 +1000", "source": "iPhone"}],
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert result["health_metrics"] == []
 
 
 def test_ingest_health_stores_metrics(client, db):
