@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from bede_data.api.analytics import router as analytics_router
+from bede_data.api.conversations import router as conversations_router
 from bede_data.api.config_api import router as config_router
 from bede_data.api.freshness import router as freshness_router
 from bede_data.api.goals import router as goals_router
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(freshness_router)
     app.include_router(storage_router)
     app.include_router(retention_router)
+    app.include_router(conversations_router)
 
     @app.get("/health")
     def health_check():
