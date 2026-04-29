@@ -1,6 +1,8 @@
+import sqlite3
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
+from fastapi.responses import JSONResponse
 
 from bede_data.api.analytics import router as analytics_router
 from bede_data.api.conversations import router as conversations_router
@@ -17,7 +19,7 @@ from bede_data.api.task_log import router as task_log_router
 from bede_data.api.vault_data import router as vault_data_router
 from bede_data.api.vault_queue import router as vault_queue_router
 from bede_data.api.weather import router as weather_router
-from bede_data.db.connection import init_db
+from bede_data.db.connection import get_db, init_db
 from bede_data.ingest.router import router as ingest_router
 
 
@@ -29,6 +31,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="bede-data", lifespan=lifespan)
+
     app.include_router(ingest_router)
     app.include_router(health_router)
     app.include_router(vault_data_router)
@@ -47,7 +50,15 @@ def create_app() -> FastAPI:
     app.include_router(conversations_router)
 
     @app.get("/health")
-    def health_check():
-        return {"status": "ok"}
+    def health_check(conn: sqlite3.Connection = Depends(get_db)):
+        try:
+            cursor = conn.execute("SELECT MAX(version) FROM schema_version")
+            version = cursor.fetchone()[0]
+            return {"status": "ok", "schema_version": version}
+        except Exception as e:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "unhealthy", "detail": str(e)},
+            )
 
     return app
