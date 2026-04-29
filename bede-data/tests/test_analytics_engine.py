@@ -142,3 +142,17 @@ def test_bedtime_drift_signal(db):
 
     flags = compute_bedtime_flags(db, drift_threshold_minutes=30, window_days=7)
     assert any(f["signal"] == "bedtime_drifting" for f in flags)
+
+
+def test_goal_drifting_signal(db):
+    from bede_data.analytics.signals import compute_goal_flags
+
+    db.execute(
+        "INSERT INTO goals (name, description, deadline, status, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?)",
+        ("Read 2 books", "Read 2 fiction books in May", "2026-05-10", "2026-04-01T00:00:00Z", "2026-04-01T00:00:00Z"),
+    )
+    db.commit()
+    flags = compute_goal_flags(db, stale_threshold_days=14, reference_date="2026-04-29")
+    drifting = [f for f in flags if f["signal"] == "goal_drifting"]
+    assert len(drifting) == 1
+    assert "11 days" in drifting[0]["detail"]

@@ -86,6 +86,25 @@ def compute_goal_flags(
             "detail": f"'{row['name']}' inactive for {days_inactive} days",
             "data": {"goal_id": row["id"], "goal_name": row["name"], "days_inactive": days_inactive},
         })
+
+    cursor = conn.execute(
+        "SELECT id, name, deadline, updated_at FROM goals WHERE status = 'active' AND deadline IS NOT NULL AND deadline > ?",
+        (ref,),
+    )
+    for row in cursor.fetchall():
+        deadline = datetime.strptime(row["deadline"], "%Y-%m-%d").date()
+        days_remaining = (deadline - ref_date).days
+        updated = datetime.fromisoformat(row["updated_at"].replace("Z", "+00:00")).date()
+        days_since_update = (ref_date - updated).days
+
+        if days_remaining <= 14 and days_since_update >= 7:
+            flags.append({
+                "signal": "goal_drifting",
+                "severity": "concern",
+                "detail": f"'{row['name']}' deadline in {days_remaining} days, no update for {days_since_update} days",
+                "data": {"goal_id": row["id"], "goal_name": row["name"], "days_remaining": days_remaining, "days_since_update": days_since_update},
+            })
+
     return flags
 
 

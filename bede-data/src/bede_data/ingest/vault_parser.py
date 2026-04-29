@@ -67,6 +67,21 @@ def _parse_youtube(date: str, content: str) -> list[dict]:
     ]
 
 
+def _parse_music(date: str, content: str) -> list[dict]:
+    rows = _parse_csv(content)
+    return [
+        {
+            "date": date,
+            "track": row.get("track", ""),
+            "artist": row.get("artist", ""),
+            "album": row.get("album"),
+            "listened_at": row.get("listened_at", ""),
+        }
+        for row in rows
+        if row.get("track") and row.get("artist")
+    ]
+
+
 def _parse_podcasts(date: str, content: str) -> list[dict]:
     rows = _parse_csv(content)
     return [
@@ -137,6 +152,7 @@ def parse_vault_payload(payload: dict) -> dict:
         "podcasts": [],
         "claude_sessions": [],
         "bede_sessions": [],
+        "music_listens": [],
     }
 
     for filename, content in files.items():
@@ -156,5 +172,7 @@ def parse_vault_payload(payload: dict) -> dict:
             result["bede_sessions"].extend(
                 _parse_sessions(date, content, "task_name")
             )
+        elif filename.startswith("music"):
+            result["music_listens"].extend(_parse_music(date, content))
 
     return result

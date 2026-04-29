@@ -85,6 +85,7 @@ def ingest_vault(
     total += _upsert_rows(conn, "podcasts", parsed["podcasts"])
     total += _upsert_rows(conn, "claude_sessions", parsed["claude_sessions"])
     total += _upsert_rows(conn, "bede_sessions", parsed["bede_sessions"])
+    total += _upsert_rows(conn, "music_listens", parsed.get("music_listens", []))
 
     _update_freshness(conn, "vault", 86400)
     return {"status": "ok", "records": total}
