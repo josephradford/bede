@@ -1,4 +1,34 @@
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+# Tables whose column names changed from the prototype bede schema.
+# init_db drops these if they have old-style columns, then SCHEMA_SQL recreates them.
+_PROTOTYPE_COLUMNS = {
+    "sleep_phases": "stage",
+    "workouts": "workout_name",
+    "screen_time": "identifier",
+    "medications": "name",
+    "bede_sessions": "project",
+    "state_of_mind": "associations",  # missing in prototype — presence means new schema
+}
+
+
+def tables_needing_reset(conn) -> list[str]:
+    """Return table names that still have the prototype schema."""
+    to_reset = []
+    for table, marker_col in _PROTOTYPE_COLUMNS.items():
+        cols = {
+            row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        if not cols:
+            continue
+        if table == "state_of_mind":
+            if marker_col not in cols:
+                to_reset.append(table)
+        else:
+            if marker_col in cols:
+                to_reset.append(table)
+    return to_reset
+
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS schema_version (

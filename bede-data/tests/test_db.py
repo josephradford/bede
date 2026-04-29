@@ -48,7 +48,7 @@ def test_wal_mode_enabled(db):
 def test_schema_version_is_set(db):
     cursor = db.execute("SELECT MAX(version) FROM schema_version")
     version = cursor.fetchone()[0]
-    assert version == 1
+    assert version == 2
 
 
 def test_health_metrics_upsert_by_natural_key(db):
@@ -84,3 +84,32 @@ def test_goals_status_check_constraint(db):
             "INSERT INTO goals (name, status) VALUES (?, ?)",
             ("test goal", "invalid_status"),
         )
+
+
+def test_prototype_schema_detection(tmp_path):
+    from bede_data.db.schema import tables_needing_reset
+
+    db_path = str(tmp_path / "prototype.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE sleep_phases (id INTEGER PRIMARY KEY, date TEXT, stage TEXT, hours REAL, sleep_start TEXT, sleep_end TEXT, source TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE workouts (id INTEGER PRIMARY KEY, date TEXT, workout_name TEXT, start_time TEXT, end_time TEXT, duration_min REAL, active_energy_kj REAL, avg_heart_rate_bpm REAL, max_heart_rate_bpm REAL)"
+    )
+    conn.execute(
+        "CREATE TABLE screen_time (id INTEGER PRIMARY KEY, date TEXT, device TEXT, entry_type TEXT, identifier TEXT, seconds INTEGER)"
+    )
+    conn.commit()
+
+    reset = tables_needing_reset(conn)
+    assert "sleep_phases" in reset
+    assert "workouts" in reset
+    assert "screen_time" in reset
+    conn.close()
+
+
+def test_prototype_schema_not_detected_for_new_tables(db):
+    from bede_data.db.schema import tables_needing_reset
+
+    assert tables_needing_reset(db) == []

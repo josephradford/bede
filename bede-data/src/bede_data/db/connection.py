@@ -2,7 +2,7 @@ import sqlite3
 from collections.abc import Generator
 
 from bede_data.config import settings
-from bede_data.db.schema import SCHEMA_SQL, SCHEMA_VERSION
+from bede_data.db.schema import SCHEMA_SQL, SCHEMA_VERSION, tables_needing_reset
 
 
 def get_connection() -> sqlite3.Connection:
@@ -17,6 +17,9 @@ def init_db() -> None:
     conn = get_connection()
     try:
         conn.execute("PRAGMA journal_mode=WAL")
+        for table in tables_needing_reset(conn):
+            conn.execute(f"DROP TABLE IF EXISTS [{table}]")
+        conn.commit()
         conn.executescript(SCHEMA_SQL)
         existing = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
         if existing is None or existing < SCHEMA_VERSION:
