@@ -78,6 +78,38 @@ All tools handle timezone conversion internally — pass local dates, never UTC.
 - `get_vault_changes(date)` — Obsidian vault git commits
 - `get_claude_sessions(date)` — pre-generated Claude Code session summaries
 
+**Memory tools:**
+- `create_memory(content, type)` — store a new memory (fact, preference, correction, commitment)
+- `list_memories(type?, search?)` — list active memories, optionally filtered
+- `update_memory(memory_id, content?, type?)` — update a memory
+- `delete_memory(memory_id)` — soft-delete a memory
+- `reference_memory(memory_id)` — touch last-referenced timestamp for relevance ranking
+
+**Goal tools:**
+- `create_goal(name, description?, deadline?, measurable_indicators?)` — create a new goal
+- `list_goals(status?)` — list goals (active, completed, dropped)
+- `get_goal(goal_id)` — get a single goal
+- `update_goal(goal_id, ...)` — update goal details or status
+
+**Analytics tools:**
+- `get_analytics_flags(severity?)` — get computed wellbeing signals and trend flags
+- `acknowledge_flag(flag_id)` — mark a flag as acknowledged
+
+**Config tools:**
+- `list_schedules()` / `create_schedule(...)` / `update_schedule(...)` — manage scheduled tasks
+- `list_settings()` / `get_setting(key)` / `set_setting(key, value)` — manage settings
+- `list_monitored_items(category?)` / `create_monitored_item(...)` / `delete_monitored_item(id)` — manage deal/news monitoring
+
+**Data pipeline tools:**
+- `get_data_freshness()` — check when each data source last received data
+- `get_storage()` — database size and row counts
+
+**Other tools:**
+- `list_conversations()` / `get_conversation(session_id)` — browse past conversation transcripts
+- `get_task_history(task_name?)` — scheduled task execution log
+- `enqueue_vault_item(content_type, content, vault_path?)` — queue content for vault publishing
+- `get_air_quality(site_id?)` — NSW air quality index
+
 All `date` parameters accept `'YYYY-MM-DD'`, `'today'`, `'yesterday'`, or `'last_night'`.
 Default timezone is `Australia/Sydney`; pass `timezone=` to override.
 
