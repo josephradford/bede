@@ -1,6 +1,7 @@
 name: bede-data CI
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - "bede-data/**"
