@@ -76,11 +76,44 @@ def _extract_qty(value) -> float | None:
     return None
 
 
+def _extract_named_stages(analysis: dict, date: str, source: str) -> list[dict]:
+    """Extract named sleep stage fields (core, deep, rem, etc.) from an analysis entry."""
+    rows = []
+    start_ts = _parse_timestamp(
+        analysis.get("sleepStart", "") or analysis.get("startDate", "")
+    )
+    end_ts = _parse_timestamp(
+        analysis.get("sleepEnd", "") or analysis.get("endDate", "")
+    )
+    start_utc = start_ts[1] if start_ts else None
+    end_utc = end_ts[1] if end_ts else None
+
+    for stage in ("core", "deep", "rem", "awake", "inBed", "asleep"):
+        val = analysis.get(stage)
+        if val is not None and val != 0:
+            try:
+                rows.append(
+                    {
+                        "date": date,
+                        "phase": stage,
+                        "hours": float(val),
+                        "start_time": start_utc,
+                        "end_time": end_utc,
+                        "source": source or None,
+                    }
+                )
+            except (ValueError, TypeError):
+                pass
+    return rows
+
+
 def _process_sleep(metric: dict) -> list[dict]:
     """Process sleep data from all HAE formats: aggregatedSleepAnalyses,
-    sleepAnalyses, and inline data[].sleepAnalysis."""
+    sleepAnalyses, data[] as analyses (named stage fields), and
+    data[].sleepAnalysis (inline HK phase entries)."""
     rows = []
 
+    # Format 1: top-level aggregated or non-aggregated analyses
     analyses = metric.get("aggregatedSleepAnalyses", [])
     if not analyses:
         analyses = metric.get("sleepAnalyses", [])
@@ -96,30 +129,15 @@ def _process_sleep(metric: dict) -> list[dict]:
         if not date:
             continue
         source = analysis.get("source") or analysis.get("sleepSource", "")
-        start_utc = start_ts[1] if start_ts else None
-        end_utc = end_ts[1] if end_ts else None
+        rows.extend(_extract_named_stages(analysis, date, source))
 
-        for stage in ("core", "deep", "rem", "awake", "inBed", "asleep"):
-            val = analysis.get(stage)
-            if val is not None and val != 0:
-                try:
-                    rows.append(
-                        {
-                            "date": date,
-                            "phase": stage,
-                            "hours": float(val),
-                            "start_time": start_utc,
-                            "end_time": end_utc,
-                            "source": source or None,
-                        }
-                    )
-                except (ValueError, TypeError):
-                    pass
-
+    # Format 2: data[] entries — may have sleepAnalysis sub-arrays (inline HK phases)
+    # or be analyses themselves with named stage fields (fallback when no top-level analyses)
     for entry in metric.get("data", []):
         date = _parse_date(entry.get("date", ""))
         source = entry.get("source", "")
 
+        # Inline HK sleep phases
         for phase_entry in entry.get("sleepAnalysis", []):
             phase = phase_entry.get("value", "")
             prefix = "HKCategoryValueSleepAnalysis."
@@ -139,6 +157,10 @@ def _process_sleep(metric: dict) -> list[dict]:
                     "source": source or None,
                 }
             )
+
+        # Fallback: data[] entries as analyses with named stage fields
+        if not analyses:
+            rows.extend(_extract_named_stages(entry, date, source))
 
     return rows
 

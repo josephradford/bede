@@ -128,6 +128,36 @@ def test_parse_sleep_aggregated():
     assert result["sleep_phases"][0]["date"] == "2026-04-29"
 
 
+def test_parse_sleep_data_entries_as_analyses():
+    """When no aggregatedSleepAnalyses or sleepAnalyses exist, data[] entries
+    themselves may contain named stage fields."""
+    payload = {
+        "data": {
+            "metrics": [
+                {
+                    "name": "sleep_analysis",
+                    "data": [
+                        {
+                            "date": "2026-04-29 07:00:00 +1000",
+                            "source": "Apple Watch",
+                            "sleepStart": "2026-04-28 23:00:00 +1000",
+                            "sleepEnd": "2026-04-29 07:00:00 +1000",
+                            "core": 3.0,
+                            "deep": 1.5,
+                            "rem": 2.0,
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    phases = {p["phase"]: p["hours"] for p in result["sleep_phases"]}
+    assert phases["core"] == 3.0
+    assert phases["deep"] == 1.5
+    assert phases["rem"] == 2.0
+
+
 def test_parse_workouts_dict_fields():
     payload = {
         "data": {
