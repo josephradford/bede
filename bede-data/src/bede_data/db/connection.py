@@ -20,7 +20,9 @@ def init_db() -> None:
         for table in tables_needing_reset(conn):
             conn.execute(f"DROP TABLE IF EXISTS [{table}]")
         try:
-            existing = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
+            existing = conn.execute(
+                "SELECT MAX(version) FROM schema_version"
+            ).fetchone()[0]
         except sqlite3.OperationalError:
             existing = None
         if existing is not None and existing < 3:
