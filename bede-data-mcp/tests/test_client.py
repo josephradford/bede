@@ -1,5 +1,4 @@
 import httpx
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from bede_data_mcp import client
@@ -17,7 +16,9 @@ async def test_get_filters_none_params():
     with patch("httpx.AsyncClient", return_value=mock_http):
         result = await client.get("/test", foo="bar", baz=None)
 
-    mock_http.request.assert_called_once_with("GET", "/test", params={"foo": "bar"}, json=None)
+    mock_http.request.assert_called_once_with(
+        "GET", "/test", params={"foo": "bar"}, json=None
+    )
     assert result == {"ok": True}
 
 
@@ -62,5 +63,7 @@ async def test_post_sends_body():
     with patch("httpx.AsyncClient", return_value=mock_http):
         result = await client.post("/test", {"key": "value"})
 
-    mock_http.request.assert_called_once_with("POST", "/test", params=None, json={"key": "value"})
+    mock_http.request.assert_called_once_with(
+        "POST", "/test", params=None, json={"key": "value"}
+    )
     assert result == {"id": 1}

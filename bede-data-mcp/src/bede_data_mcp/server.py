@@ -4,7 +4,7 @@ import os
 
 from fastmcp import FastMCP
 
-from bede_data_mcp import client
+from bede_data_mcp import client  # noqa: F401
 
 mcp = FastMCP("personal-data")
 
