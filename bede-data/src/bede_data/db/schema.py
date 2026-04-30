@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Tables whose column names changed from the prototype bede schema.
 # init_db drops these if they have old-style columns, then SCHEMA_SQL recreates them.
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS health_metrics (
     value       REAL NOT NULL,
     source      TEXT,
     recorded_at TEXT,
-    UNIQUE (date, metric, source)
+    UNIQUE (date, metric, source, recorded_at)
 );
 
 CREATE TABLE IF NOT EXISTS sleep_phases (

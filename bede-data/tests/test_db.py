@@ -48,17 +48,17 @@ def test_wal_mode_enabled(db):
 def test_schema_version_is_set(db):
     cursor = db.execute("SELECT MAX(version) FROM schema_version")
     version = cursor.fetchone()[0]
-    assert version == 2
+    assert version == 3
 
 
 def test_health_metrics_upsert_by_natural_key(db):
     db.execute(
-        "INSERT INTO health_metrics (date, metric, value, source) VALUES (?, ?, ?, ?)",
-        ("2026-04-29", "steps", 8000, "apple_health"),
+        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
+        ("2026-04-29", "steps", 8000, "apple_health", "2026-04-29T00:00:00Z"),
     )
     db.execute(
-        "INSERT OR REPLACE INTO health_metrics (date, metric, value, source) VALUES (?, ?, ?, ?)",
-        ("2026-04-29", "steps", 9000, "apple_health"),
+        "INSERT OR REPLACE INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
+        ("2026-04-29", "steps", 9000, "apple_health", "2026-04-29T00:00:00Z"),
     )
     db.commit()
     cursor = db.execute(

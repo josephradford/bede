@@ -19,6 +19,12 @@ def init_db() -> None:
         conn.execute("PRAGMA journal_mode=WAL")
         for table in tables_needing_reset(conn):
             conn.execute(f"DROP TABLE IF EXISTS [{table}]")
+        try:
+            existing = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
+        except sqlite3.OperationalError:
+            existing = None
+        if existing is not None and existing < 3:
+            conn.execute("DROP TABLE IF EXISTS health_metrics")
         conn.commit()
         conn.executescript(SCHEMA_SQL)
         existing = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
