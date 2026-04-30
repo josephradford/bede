@@ -259,9 +259,8 @@ def parse_health_payload(payload: dict) -> dict:
             for entry in metric.get("data", []):
                 date = _parse_date(entry.get("date", ""))
                 source = entry.get("source", "")
-                qty = entry.get("qty")
-                if qty is None:
-                    qty = entry.get("Avg")
+                avg = entry.get("Avg")
+                qty = avg if avg is not None else entry.get("qty")
                 if qty is None:
                     continue
                 try:

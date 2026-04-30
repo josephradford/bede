@@ -378,6 +378,33 @@ def test_parse_metric_avg_fallback():
     assert result["health_metrics"][0]["source"] == "Apple Watch"
 
 
+def test_parse_metric_avg_preferred_over_qty():
+    """When both Avg and qty are present, Avg should win (qty may be 0 in summarised mode)."""
+    payload = {
+        "data": {
+            "metrics": [
+                {
+                    "name": "heart_rate",
+                    "units": "bpm",
+                    "data": [
+                        {
+                            "date": "2026-04-29 08:30:00 +1000",
+                            "qty": 0,
+                            "Avg": 72,
+                            "Min": 60,
+                            "Max": 85,
+                            "source": "Apple Watch",
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert len(result["health_metrics"]) == 1
+    assert result["health_metrics"][0]["value"] == 72
+
+
 def test_parse_sleep_unsummarised_phase_records():
     """Unsummarised sleep: data[] entries that ARE phase records with value/qty."""
     payload = {
