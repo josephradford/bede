@@ -409,6 +409,7 @@ async def update_goal(
             body[field] = val
     return await client.put(f"/api/goals/{goal_id}", body)
 
+
 # ---------------------------------------------------------------------------
 # Analytics tools
 # ---------------------------------------------------------------------------
@@ -603,6 +604,92 @@ async def delete_monitored_item(item_id: int) -> dict:
         item_id: ID of the item to remove.
     """
     return await client.delete(f"/api/config/monitored-items/{item_id}")
+
+
+# ---------------------------------------------------------------------------
+# Data pipeline tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def get_data_freshness() -> dict:
+    """Return data freshness status for all sources (when each source last received data)."""
+    return await client.get("/api/freshness")
+
+
+@mcp.tool()
+async def get_storage() -> dict:
+    """Return database storage usage: total size and row counts per table."""
+    return await client.get("/api/storage")
+
+
+# ---------------------------------------------------------------------------
+# Conversation history tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def list_conversations() -> dict:
+    """List all past conversation sessions with metadata (message count, first timestamp)."""
+    return await client.get("/api/conversations")
+
+
+@mcp.tool()
+async def get_conversation(session_id: str) -> dict:
+    """Get the full transcript of a past conversation session.
+
+    Args:
+        session_id: The session ID to retrieve.
+    """
+    return await client.get(f"/api/conversations/{session_id}")
+
+
+# ---------------------------------------------------------------------------
+# Task history tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def get_task_history(
+    task_name: str | None = None, limit: int | None = None
+) -> dict:
+    """Get scheduled task execution history.
+
+    Args:
+        task_name: Filter by task name (omit for all tasks).
+        limit: Maximum number of records to return.
+    """
+    kwargs: dict = {}
+    if task_name is not None:
+        kwargs["task_name"] = task_name
+    if limit is not None:
+        kwargs["limit"] = limit
+    return await client.get("/api/tasks/history", **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Vault publish queue
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def enqueue_vault_item(
+    content_type: str, content: str, vault_path: str | None = None
+) -> dict:
+    """Queue content for publishing to the Obsidian vault.
+
+    Use this for journal entries, captured ideas, or any content the user wants in their vault.
+    A background process picks items off the queue and writes them as Markdown files.
+
+    Args:
+        content_type: Type of content (e.g. 'journal', 'idea', 'note').
+        content: The Markdown content to publish.
+        vault_path: Target path within the vault (e.g. 'Journal/2026-04-30.md'). Optional.
+    """
+    body: dict = {"content_type": content_type, "content": content}
+    if vault_path is not None:
+        body["vault_path"] = vault_path
+    return await client.post("/api/vault-queue", body)
 
 
 if __name__ == "__main__":
