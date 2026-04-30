@@ -179,6 +179,63 @@ async def get_bede_sessions(date: str, timezone: str = "Australia/Sydney") -> di
     return await client.get("/api/vault/bede-sessions", date=date, timezone=timezone)
 
 
+# ---------------------------------------------------------------------------
+# Location tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def get_location_summary(date: str, timezone: str = "Australia/Sydney") -> dict:
+    """Return summarised stops for a given local date with place names and arrival/departure times.
+
+    Clusters GPS points into named locations via reverse geocoding.
+
+    Args:
+        date: Local date -- 'YYYY-MM-DD', 'today', or 'yesterday'.
+        timezone: Olson timezone name.
+    """
+    return await client.get("/api/location/summary", date=date, tz=timezone)
+
+
+@mcp.tool()
+async def get_location_raw(from_date: str, to_date: str) -> dict:
+    """Return raw GPS points for a local date range without summarisation.
+
+    Args:
+        from_date: Start local date ('YYYY-MM-DD').
+        to_date: End local date ('YYYY-MM-DD').
+    """
+    return await client.get("/api/location/raw", from_date=from_date, to_date=to_date)
+
+
+# ---------------------------------------------------------------------------
+# Weather tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def get_weather() -> dict:
+    """Return current weather observations and 7-day forecast for the configured location.
+
+    Includes temperature, conditions, wind, humidity, rain chance, UV index, and sunrise/sunset.
+    Data sourced from the Australian Bureau of Meteorology.
+    """
+    return await client.get("/api/weather")
+
+
+@mcp.tool()
+async def get_air_quality(site_id: str | None = None) -> dict:
+    """Return current air quality index and alerts.
+
+    Args:
+        site_id: Optional monitoring site ID. Omit for default location.
+    """
+    kwargs = {}
+    if site_id is not None:
+        kwargs["site_id"] = site_id
+    return await client.get("/api/air-quality", **kwargs)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("DATA_MCP_PORT", "8002"))
     mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
