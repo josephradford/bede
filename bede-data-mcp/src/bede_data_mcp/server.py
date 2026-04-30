@@ -450,6 +450,161 @@ async def acknowledge_flag(flag_id: int) -> dict:
     return await client.put(f"/api/analytics/flags/{flag_id}/acknowledge")
 
 
+# ---------------------------------------------------------------------------
+# Config tools — schedules
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def list_schedules() -> dict:
+    """List all scheduled task definitions."""
+    return await client.get("/api/config/schedules")
+
+
+@mcp.tool()
+async def create_schedule(
+    task_name: str,
+    cron_expression: str,
+    prompt: str,
+    model: str | None = None,
+    timeout_seconds: int | None = None,
+    interactive: bool | None = None,
+    enabled: bool | None = None,
+) -> dict:
+    """Create a new scheduled task.
+
+    Args:
+        task_name: Unique name for the task.
+        cron_expression: Cron schedule (e.g. '0 8 * * 1-5' for weekday mornings at 8am).
+        prompt: The prompt text sent to Claude when the task fires.
+        model: Claude model to use (omit for default).
+        timeout_seconds: Maximum execution time in seconds (omit for default 300).
+        interactive: Whether the task can yield to the user for input (omit for default false).
+        enabled: Whether the task is active (omit for default true).
+    """
+    body: dict = {
+        "task_name": task_name,
+        "cron_expression": cron_expression,
+        "prompt": prompt,
+    }
+    for field in ("model", "timeout_seconds", "interactive", "enabled"):
+        val = locals()[field]
+        if val is not None:
+            body[field] = val
+    return await client.post("/api/config/schedules", body)
+
+
+@mcp.tool()
+async def update_schedule(
+    schedule_id: int,
+    cron_expression: str | None = None,
+    prompt: str | None = None,
+    model: str | None = None,
+    timeout_seconds: int | None = None,
+    interactive: bool | None = None,
+    enabled: bool | None = None,
+) -> dict:
+    """Update an existing scheduled task.
+
+    Args:
+        schedule_id: ID of the schedule to update.
+        cron_expression: New cron schedule (omit to keep current).
+        prompt: New prompt text (omit to keep current).
+        model: New model (omit to keep current).
+        timeout_seconds: New timeout (omit to keep current).
+        interactive: New interactive setting (omit to keep current).
+        enabled: New enabled setting (omit to keep current).
+    """
+    body: dict = {}
+    for field in (
+        "cron_expression",
+        "prompt",
+        "model",
+        "timeout_seconds",
+        "interactive",
+        "enabled",
+    ):
+        val = locals()[field]
+        if val is not None:
+            body[field] = val
+    return await client.put(f"/api/config/schedules/{schedule_id}", body)
+
+
+# ---------------------------------------------------------------------------
+# Config tools — settings
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def list_settings() -> dict:
+    """List all key-value settings (quiet hours, coaching thresholds, etc.)."""
+    return await client.get("/api/config/settings")
+
+
+@mcp.tool()
+async def get_setting(key: str) -> dict:
+    """Get a single setting by key.
+
+    Args:
+        key: The setting key (e.g. 'quiet_hours_start', 'sleep_target_hours').
+    """
+    return await client.get(f"/api/config/settings/{key}")
+
+
+@mcp.tool()
+async def set_setting(key: str, value: str) -> dict:
+    """Set a key-value setting. Creates or updates.
+
+    Args:
+        key: The setting key.
+        value: The setting value (stored as a string).
+    """
+    return await client.put(f"/api/config/settings/{key}", {"value": value})
+
+
+# ---------------------------------------------------------------------------
+# Config tools — monitored items
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def list_monitored_items(category: str | None = None) -> dict:
+    """List monitored items (deal categories, content sources, etc.).
+
+    Args:
+        category: Filter by category (e.g. 'deals', 'news').
+    """
+    kwargs: dict = {}
+    if category is not None:
+        kwargs["category"] = category
+    return await client.get("/api/config/monitored-items", **kwargs)
+
+
+@mcp.tool()
+async def create_monitored_item(category: str, name: str, config: str) -> dict:
+    """Add a new monitored item (e.g. a deal category to track or a news source).
+
+    Args:
+        category: Item category (e.g. 'deals', 'news').
+        name: Human-readable name.
+        config: JSON string with category-specific configuration.
+    """
+    return await client.post(
+        "/api/config/monitored-items",
+        {"category": category, "name": name, "config": config},
+    )
+
+
+@mcp.tool()
+async def delete_monitored_item(item_id: int) -> dict:
+    """Remove a monitored item (soft-delete).
+
+    Args:
+        item_id: ID of the item to remove.
+    """
+    return await client.delete(f"/api/config/monitored-items/{item_id}")
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("DATA_MCP_PORT", "8002"))
     mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
