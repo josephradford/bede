@@ -131,13 +131,12 @@ def _process_sleep(metric: dict) -> list[dict]:
         source = analysis.get("source") or analysis.get("sleepSource", "")
         rows.extend(_extract_named_stages(analysis, date, source))
 
-    # Format 2: data[] entries — may have sleepAnalysis sub-arrays (inline HK phases)
-    # or be analyses themselves with named stage fields (fallback when no top-level analyses)
+    # Format 2: data[] entries
     for entry in metric.get("data", []):
         date = _parse_date(entry.get("date", ""))
         source = entry.get("source", "")
 
-        # Inline HK sleep phases
+        # 2a: entries with sleepAnalysis sub-arrays (summarised inline HK phases)
         for phase_entry in entry.get("sleepAnalysis", []):
             phase = phase_entry.get("value", "")
             prefix = "HKCategoryValueSleepAnalysis."
@@ -158,7 +157,31 @@ def _process_sleep(metric: dict) -> list[dict]:
                 }
             )
 
-        # Fallback: data[] entries as analyses with named stage fields
+        # 2b: entries that ARE phase records (unsummarised — value/qty/startDate/endDate)
+        phase_value = entry.get("value", "")
+        if phase_value and entry.get("startDate"):
+            prefix = "HKCategoryValueSleepAnalysis."
+            if phase_value.startswith(prefix):
+                phase_value = phase_value[len(prefix) :]
+            hours = entry.get("qty")
+            if hours is None:
+                hours = _hours_between(
+                    entry.get("startDate", ""), entry.get("endDate", "")
+                )
+            else:
+                hours = float(hours)
+            rows.append(
+                {
+                    "date": date,
+                    "phase": phase_value,
+                    "hours": hours,
+                    "start_time": _parse_datetime(entry.get("startDate", "")),
+                    "end_time": _parse_datetime(entry.get("endDate", "")),
+                    "source": source or None,
+                }
+            )
+
+        # 2c: entries with named stage fields (e.g. core, deep, rem as keys)
         if not analyses:
             rows.extend(_extract_named_stages(entry, date, source))
 
@@ -237,6 +260,8 @@ def parse_health_payload(payload: dict) -> dict:
                 date = _parse_date(entry.get("date", ""))
                 source = entry.get("source", "")
                 qty = entry.get("qty")
+                if qty is None:
+                    qty = entry.get("Avg")
                 if qty is None:
                     continue
                 try:

@@ -348,3 +348,94 @@ def test_ingest_health_upserts_on_duplicate(client, db):
     rows = cursor.fetchall()
     assert len(rows) == 1
     assert rows[0]["value"] == 9500
+
+
+def test_parse_metric_avg_fallback():
+    """Unsummarised metrics (e.g. heart_rate) use Avg/Min/Max instead of qty."""
+    payload = {
+        "data": {
+            "metrics": [
+                {
+                    "name": "heart_rate",
+                    "units": "bpm",
+                    "data": [
+                        {
+                            "date": "2026-04-29 08:30:00 +1000",
+                            "Avg": 72,
+                            "Min": 60,
+                            "Max": 85,
+                            "source": "Apple Watch",
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert len(result["health_metrics"]) == 1
+    assert result["health_metrics"][0]["metric"] == "heart_rate"
+    assert result["health_metrics"][0]["value"] == 72
+    assert result["health_metrics"][0]["source"] == "Apple Watch"
+
+
+def test_parse_sleep_unsummarised_phase_records():
+    """Unsummarised sleep: data[] entries that ARE phase records with value/qty."""
+    payload = {
+        "data": {
+            "metrics": [
+                {
+                    "name": "sleep_analysis",
+                    "data": [
+                        {
+                            "date": "2026-04-29 07:00:00 +1000",
+                            "value": "HKCategoryValueSleepAnalysis.asleepCore",
+                            "qty": 3.2,
+                            "startDate": "2026-04-28 23:00:00 +1000",
+                            "endDate": "2026-04-29 02:12:00 +1000",
+                            "source": "Apple Watch",
+                        },
+                        {
+                            "date": "2026-04-29 07:00:00 +1000",
+                            "value": "HKCategoryValueSleepAnalysis.asleepDeep",
+                            "qty": 1.5,
+                            "startDate": "2026-04-29 02:12:00 +1000",
+                            "endDate": "2026-04-29 03:42:00 +1000",
+                            "source": "Apple Watch",
+                        },
+                    ],
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    phases = {p["phase"]: p for p in result["sleep_phases"]}
+    assert "asleepCore" in phases
+    assert phases["asleepCore"]["hours"] == 3.2
+    assert "asleepDeep" in phases
+    assert phases["asleepDeep"]["hours"] == 1.5
+
+
+def test_parse_sleep_unsummarised_no_qty_uses_duration():
+    """Unsummarised sleep without qty falls back to calculating hours from start/end."""
+    payload = {
+        "data": {
+            "metrics": [
+                {
+                    "name": "sleep_analysis",
+                    "data": [
+                        {
+                            "date": "2026-04-29 07:00:00 +1000",
+                            "value": "HKCategoryValueSleepAnalysis.asleepREM",
+                            "startDate": "2026-04-29 03:00:00 +1000",
+                            "endDate": "2026-04-29 05:00:00 +1000",
+                            "source": "Apple Watch",
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert len(result["sleep_phases"]) == 1
+    assert result["sleep_phases"][0]["phase"] == "asleepREM"
+    assert result["sleep_phases"][0]["hours"] == 2.0
