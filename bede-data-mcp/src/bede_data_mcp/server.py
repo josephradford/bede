@@ -236,6 +236,180 @@ async def get_air_quality(site_id: str | None = None) -> dict:
     return await client.get("/api/air-quality", **kwargs)
 
 
+# ---------------------------------------------------------------------------
+# Memory tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def create_memory(
+    content: str,
+    type: str,
+    source_conversation: str | None = None,
+    supersedes: int | None = None,
+) -> dict:
+    """Store a new memory. Memories are facts, preferences, or corrections that persist across conversations.
+
+    Args:
+        content: The memory content to store.
+        type: Memory type -- 'fact', 'preference', 'correction', or 'commitment'.
+        source_conversation: Optional session ID of the conversation that produced this memory.
+        supersedes: Optional ID of a previous memory this one corrects (marks the old one inactive).
+    """
+    body: dict = {"content": content, "type": type}
+    if source_conversation is not None:
+        body["source_conversation"] = source_conversation
+    if supersedes is not None:
+        body["supersedes"] = supersedes
+    return await client.post("/api/memories", body)
+
+
+@mcp.tool()
+async def list_memories(
+    type: str | None = None,
+    search: str | None = None,
+    limit: int | None = None,
+) -> dict:
+    """List active memories, optionally filtered by type or search term.
+
+    Args:
+        type: Filter by type -- 'fact', 'preference', 'correction', or 'commitment'.
+        search: Search term to filter memory content.
+        limit: Maximum number of memories to return.
+    """
+    kwargs: dict = {}
+    if type is not None:
+        kwargs["type"] = type
+    if search is not None:
+        kwargs["search"] = search
+    if limit is not None:
+        kwargs["limit"] = limit
+    return await client.get("/api/memories", **kwargs)
+
+
+@mcp.tool()
+async def update_memory(
+    memory_id: int,
+    content: str | None = None,
+    type: str | None = None,
+) -> dict:
+    """Update an existing memory's content or type.
+
+    Args:
+        memory_id: ID of the memory to update.
+        content: New content (omit to keep current).
+        type: New type (omit to keep current).
+    """
+    body: dict = {}
+    if content is not None:
+        body["content"] = content
+    if type is not None:
+        body["type"] = type
+    return await client.put(f"/api/memories/{memory_id}", body)
+
+
+@mcp.tool()
+async def delete_memory(memory_id: int) -> dict:
+    """Soft-delete a memory (marks it inactive, does not remove the row).
+
+    Args:
+        memory_id: ID of the memory to delete.
+    """
+    return await client.delete(f"/api/memories/{memory_id}")
+
+
+@mcp.tool()
+async def reference_memory(memory_id: int) -> dict:
+    """Touch a memory's last-referenced timestamp for relevance ranking.
+
+    Call this when a memory is actively used in a conversation to track which memories are still relevant.
+
+    Args:
+        memory_id: ID of the memory being referenced.
+    """
+    return await client.post(f"/api/memories/{memory_id}/reference")
+
+
+# ---------------------------------------------------------------------------
+# Goal tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def create_goal(
+    name: str,
+    description: str | None = None,
+    deadline: str | None = None,
+    measurable_indicators: str | None = None,
+) -> dict:
+    """Create a new goal. Goals are commitments the user wants to track and be held accountable for.
+
+    Args:
+        name: Short name for the goal.
+        description: Detailed description of what achieving this goal means.
+        deadline: Target date ('YYYY-MM-DD') or omit for open-ended goals.
+        measurable_indicators: How progress or completion will be measured.
+    """
+    body: dict = {"name": name}
+    if description is not None:
+        body["description"] = description
+    if deadline is not None:
+        body["deadline"] = deadline
+    if measurable_indicators is not None:
+        body["measurable_indicators"] = measurable_indicators
+    return await client.post("/api/goals", body)
+
+
+@mcp.tool()
+async def list_goals(status: str | None = None) -> dict:
+    """List goals, optionally filtered by status.
+
+    Args:
+        status: Filter by status -- 'active', 'completed', or 'dropped'.
+    """
+    kwargs: dict = {}
+    if status is not None:
+        kwargs["status"] = status
+    return await client.get("/api/goals", **kwargs)
+
+
+@mcp.tool()
+async def get_goal(goal_id: int) -> dict:
+    """Get a single goal by ID.
+
+    Args:
+        goal_id: ID of the goal to retrieve.
+    """
+    return await client.get(f"/api/goals/{goal_id}")
+
+
+@mcp.tool()
+async def update_goal(
+    goal_id: int,
+    name: str | None = None,
+    description: str | None = None,
+    deadline: str | None = None,
+    measurable_indicators: str | None = None,
+    status: str | None = None,
+) -> dict:
+    """Update an existing goal's details or status.
+
+    Args:
+        goal_id: ID of the goal to update.
+        name: New name (omit to keep current).
+        description: New description (omit to keep current).
+        deadline: New deadline date (omit to keep current).
+        measurable_indicators: Updated measurement criteria (omit to keep current).
+        status: New status -- 'active', 'completed', or 'dropped' (omit to keep current).
+    """
+    body: dict = {}
+    for field in ("name", "description", "deadline", "measurable_indicators", "status"):
+        val = locals()[field]
+        if val is not None:
+            body[field] = val
+    return await client.put(f"/api/goals/{goal_id}", body)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("DATA_MCP_PORT", "8002"))
     mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
