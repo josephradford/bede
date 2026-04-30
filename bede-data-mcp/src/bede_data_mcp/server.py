@@ -409,6 +409,46 @@ async def update_goal(
             body[field] = val
     return await client.put(f"/api/goals/{goal_id}", body)
 
+# ---------------------------------------------------------------------------
+# Analytics tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def get_analytics_flags(
+    severity: str | None = None,
+    acknowledged: bool | None = None,
+    limit: int | None = None,
+) -> dict:
+    """Get computed analytics flags (wellbeing signals, goal staleness, etc.).
+
+    Flags are produced by the Analytics Engine from raw data. Use these to understand
+    patterns and trends that inform coaching conversations.
+
+    Args:
+        severity: Filter by severity -- 'info', 'nudge', 'concern', or 'alert'.
+        acknowledged: Filter by acknowledgement status (true/false).
+        limit: Maximum number of flags to return.
+    """
+    kwargs: dict = {}
+    if severity is not None:
+        kwargs["severity"] = severity
+    if acknowledged is not None:
+        kwargs["acknowledged"] = acknowledged
+    if limit is not None:
+        kwargs["limit"] = limit
+    return await client.get("/api/analytics/flags", **kwargs)
+
+
+@mcp.tool()
+async def acknowledge_flag(flag_id: int) -> dict:
+    """Mark an analytics flag as acknowledged so it is not raised again.
+
+    Args:
+        flag_id: ID of the flag to acknowledge.
+    """
+    return await client.put(f"/api/analytics/flags/{flag_id}/acknowledge")
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("DATA_MCP_PORT", "8002"))
