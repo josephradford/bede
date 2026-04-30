@@ -33,7 +33,7 @@ jobs:
       - run: uv run pytest tests/ -v --tb=short
 
   build-push:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: [lint, test]
     runs-on: ubuntu-latest
     permissions:
