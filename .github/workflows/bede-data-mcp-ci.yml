@@ -1,0 +1,62 @@
+name: bede-data-mcp CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "bede-data-mcp/**"
+  push:
+    branches: [main]
+    paths:
+      - "bede-data-mcp/**"
+
+defaults:
+  run:
+    working-directory: bede-data-mcp
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --extra dev
+      - run: uv run ruff check src/ tests/
+      - run: uv run ruff format --check src/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --extra dev
+      - run: uv run pytest tests/ -v --tb=short
+
+  build-push:
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./bede-data-mcp
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/josephradford/bede-data-mcp:latest
+            ghcr.io/josephradford/bede-data-mcp:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
