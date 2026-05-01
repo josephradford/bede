@@ -182,9 +182,7 @@ class TestInteractiveSession:
         self, sm, data_client, claude_cli
     ):
         data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
-        claude_cli.run.return_value = ClaudeResult(
-            text="Reply!", session_id="sess-1"
-        )
+        claude_cli.run.return_value = ClaudeResult(text="Reply!", session_id="sess-1")
 
         sm.register_interactive("claude-sonnet-4-5-20250514")
         await sm.send("Hello")
@@ -196,9 +194,7 @@ class TestInteractiveSession:
         self, sm, data_client, claude_cli
     ):
         data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
-        claude_cli.run.return_value = ClaudeResult(
-            text="Reply!", session_id="sess-1"
-        )
+        claude_cli.run.return_value = ClaudeResult(text="Reply!", session_id="sess-1")
 
         sm.register_interactive("claude-sonnet-4-5-20250514")
         await sm.send("Message 1")
@@ -222,9 +218,7 @@ class TestInteractiveSession:
             interactive_max_age=3600,
         )
         data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
-        claude_cli.run.return_value = ClaudeResult(
-            text="Reply!", session_id="sess-1"
-        )
+        claude_cli.run.return_value = ClaudeResult(text="Reply!", session_id="sess-1")
 
         sm.register_interactive("claude-sonnet-4-5-20250514")
         time.sleep(0.02)
@@ -247,9 +241,7 @@ class TestInteractiveSession:
             interactive_max_age=0.01,
         )
         data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
-        claude_cli.run.return_value = ClaudeResult(
-            text="Reply!", session_id="sess-1"
-        )
+        claude_cli.run.return_value = ClaudeResult(text="Reply!", session_id="sess-1")
 
         sm.register_interactive("claude-sonnet-4-5-20250514")
         time.sleep(0.02)
@@ -260,9 +252,7 @@ class TestInteractiveSession:
 
     async def test_clear_interactive(self, sm, data_client, claude_cli):
         data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
-        claude_cli.run.return_value = ClaudeResult(
-            text="Reply!", session_id="sess-1"
-        )
+        claude_cli.run.return_value = ClaudeResult(text="Reply!", session_id="sess-1")
 
         sm.register_interactive("claude-sonnet-4-5-20250514")
         sm.clear_interactive()

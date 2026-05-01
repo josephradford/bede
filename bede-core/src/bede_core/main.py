@@ -165,7 +165,10 @@ def main():
     )
     app.add_handler(
         CommandHandler(
-            "reset", create_reset_handler(session_manager, settings.allowed_user_id, runner=runner)
+            "reset",
+            create_reset_handler(
+                session_manager, settings.allowed_user_id, runner=runner
+            ),
         )
     )
     app.add_handler(

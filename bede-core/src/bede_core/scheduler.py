@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 from datetime import datetime, timezone
@@ -102,6 +103,25 @@ class TaskRunner:
             self._running.discard(name)
 
     async def _run_task_inner(self, task: dict):
+        task_config_raw = task.get("task_config")
+
+        if task_config_raw:
+            try:
+                config = (
+                    json.loads(task_config_raw)
+                    if isinstance(task_config_raw, str)
+                    else task_config_raw
+                )
+            except (json.JSONDecodeError, TypeError):
+                config = {}
+            steps = config.get("steps")
+            if steps:
+                await self._run_multistep(task, config)
+                return
+
+        await self._run_single_step(task)
+
+    async def _run_single_step(self, task: dict):
         name = task["task_name"]
         prompt = task["prompt"]
         model = task.get("model")
@@ -151,6 +171,84 @@ class TaskRunner:
 
         if interactive and model and not result.timed_out:
             self._session.register_interactive(model)
+
+    async def _run_multistep(self, task: dict, config: dict):
+        name = task["task_name"]
+        preamble = task.get("prompt", "")
+        model = task.get("model")
+        timeout = task.get("timeout_seconds", 300)
+        steps = config["steps"]
+        parallel = config.get("parallel", False)
+
+        now = datetime.now(self._tz)
+        now_str = now.strftime("%H:%M")
+        now_date_str = now.strftime("%A, %d %B %Y")
+        cron = task.get("cron_expression", "")
+        next_str = _next_run_str(cron, self._tz, now)
+
+        step_names = [s["name"] for s in steps if not s.get("silent")]
+        header = f"📅 *{name}* ({now_str})"
+        if next_str:
+            header += f"\n↻ Next: {next_str}"
+        header += f"\n{len(step_names)} sections: {', '.join(step_names)}"
+        if parallel:
+            header += " ⚡"
+        await self._send(header)
+
+        date_prefix = f"Today is {now_date_str}.\n\n"
+
+        async def run_one_step(step: dict) -> tuple[str, str, bool]:
+            step_name = step.get("name", "Step")
+            step_prompt = step.get("prompt", "")
+            silent = step.get("silent", False)
+            step_model = step.get("model") or model
+
+            full_prompt = date_prefix
+            if preamble:
+                full_prompt += preamble + "\n\n"
+            full_prompt += step_prompt
+
+            step_timeout = step.get("timeout_seconds", timeout)
+
+            log.info("Running step '%s' for task '%s'", step_name, name)
+            result = await self._session.send_task(
+                full_prompt, model=step_model, timeout=step_timeout
+            )
+
+            if result.timed_out:
+                return step_name, f"⚠️ *{step_name}* — timed out", silent
+            text = result.text or "No output."
+            if result.stop_reason == "max_tokens":
+                text += "\n\n⚠️ _Response was truncated._"
+            return step_name, text, silent
+
+        if parallel:
+            non_silent = [s for s in steps if not s.get("silent")]
+            silent_steps = [s for s in steps if s.get("silent")]
+
+            results = await asyncio.gather(
+                *(run_one_step(s) for s in non_silent),
+                return_exceptions=True,
+            )
+            for r in results:
+                if isinstance(r, Exception):
+                    log.error("Parallel step failed: %s", r)
+                else:
+                    step_name, text, _ = r
+                    await self._send(text)
+
+            for s in silent_steps:
+                step_name, text, _ = await run_one_step(s)
+                log.info("Silent step '%s' completed.", step_name)
+        else:
+            for step in steps:
+                step_name, text, silent = await run_one_step(step)
+                if not silent and text:
+                    await self._send(text)
+                elif silent:
+                    log.info("Silent step '%s' completed.", step_name)
+
+        await self._send(f"✅ *{name}* complete.")
 
     def is_running(self, name: str) -> bool:
         return name in self._running

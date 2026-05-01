@@ -20,15 +20,18 @@ def _git_commit_push(vault_path: str, file_path: str):
     try:
         subprocess.run(
             ["git", "-C", vault_path, "add", file_path],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
         )
         subprocess.run(
             ["git", "-C", vault_path, "commit", "-m", "reflection: save correction"],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
         )
         subprocess.run(
             ["git", "-C", vault_path, "push"],
-            capture_output=True, timeout=30,
+            capture_output=True,
+            timeout=30,
         )
     except Exception as e:
         log.warning("Failed to commit reflection correction: %s", e)

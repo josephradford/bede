@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
@@ -249,3 +251,158 @@ class TestTypingIndicator:
         await runner.run_task(task)
 
         typing_fn.assert_called()
+
+
+class TestMultiStepTasks:
+    def _make_task(self, steps, parallel=False, preamble="Context for all steps"):
+        config = {"steps": steps}
+        if parallel:
+            config["parallel"] = True
+        return {
+            "task_name": "Multi Step",
+            "cron_expression": "0 14 * * 0",
+            "prompt": preamble,
+            "model": "claude-sonnet-4-5-20250514",
+            "timeout_seconds": 600,
+            "interactive": False,
+            "task_config": json.dumps(config),
+        }
+
+    async def test_sequential_steps(self, data_client, session_manager, send_fn):
+        runner = TaskRunner(
+            data_client=data_client,
+            session_manager=session_manager,
+            send_fn=send_fn,
+            timezone="Australia/Sydney",
+            quiet_hours_start=0,
+            quiet_hours_end=0,
+        )
+        session_manager.send_task.side_effect = [
+            ClaudeResult(text="Step 1 result", session_id="s1"),
+            ClaudeResult(text="Step 2 result", session_id="s2"),
+        ]
+        data_client.post.return_value = {"id": 1, "status": "running"}
+        data_client.put.return_value = {"id": 1, "status": "success"}
+
+        task = self._make_task(
+            [
+                {"name": "Step 1", "prompt": "Do step 1"},
+                {"name": "Step 2", "prompt": "Do step 2"},
+            ]
+        )
+
+        await runner.run_task(task)
+
+        assert session_manager.send_task.call_count == 2
+        calls = [
+            c.kwargs.get("prompt", c.args[0] if c.args else "")
+            for c in session_manager.send_task.call_args_list
+        ]
+        assert any("step 1" in c.lower() for c in calls)
+        assert any("step 2" in c.lower() for c in calls)
+
+    async def test_parallel_steps(self, data_client, session_manager, send_fn):
+        runner = TaskRunner(
+            data_client=data_client,
+            session_manager=session_manager,
+            send_fn=send_fn,
+            timezone="Australia/Sydney",
+            quiet_hours_start=0,
+            quiet_hours_end=0,
+        )
+        session_manager.send_task.return_value = ClaudeResult(
+            text="Result", session_id="s1"
+        )
+        data_client.post.return_value = {"id": 1, "status": "running"}
+        data_client.put.return_value = {"id": 1, "status": "success"}
+
+        task = self._make_task(
+            [
+                {"name": "Cat 1", "prompt": "Check cat 1"},
+                {"name": "Cat 2", "prompt": "Check cat 2"},
+            ],
+            parallel=True,
+        )
+
+        await runner.run_task(task)
+
+        assert session_manager.send_task.call_count == 2
+
+    async def test_silent_step_not_sent_to_telegram(
+        self, data_client, session_manager, send_fn
+    ):
+        runner = TaskRunner(
+            data_client=data_client,
+            session_manager=session_manager,
+            send_fn=send_fn,
+            timezone="Australia/Sydney",
+            quiet_hours_start=0,
+            quiet_hours_end=0,
+        )
+        session_manager.send_task.side_effect = [
+            ClaudeResult(text="Visible result", session_id="s1"),
+            ClaudeResult(text="Silent result", session_id="s2"),
+        ]
+        data_client.post.return_value = {"id": 1, "status": "running"}
+        data_client.put.return_value = {"id": 1, "status": "success"}
+
+        task = self._make_task(
+            [
+                {"name": "Visible", "prompt": "Show this"},
+                {"name": "Silent", "prompt": "Hide this", "silent": True},
+            ]
+        )
+
+        await runner.run_task(task)
+
+        sent_texts = " ".join(str(c) for c in send_fn.call_args_list)
+        assert "Visible result" in sent_texts
+        assert "Silent result" not in sent_texts
+
+    async def test_preamble_injected_into_steps(
+        self, data_client, session_manager, send_fn
+    ):
+        runner = TaskRunner(
+            data_client=data_client,
+            session_manager=session_manager,
+            send_fn=send_fn,
+            timezone="Australia/Sydney",
+            quiet_hours_start=0,
+            quiet_hours_end=0,
+        )
+        session_manager.send_task.return_value = ClaudeResult(
+            text="Done", session_id="s1"
+        )
+        data_client.post.return_value = {"id": 1, "status": "running"}
+        data_client.put.return_value = {"id": 1, "status": "success"}
+
+        task = self._make_task(
+            [{"name": "S1", "prompt": "Do the thing"}],
+            preamble="You are a deal scout",
+        )
+
+        await runner.run_task(task)
+
+        prompt = session_manager.send_task.call_args.kwargs.get(
+            "prompt", session_manager.send_task.call_args.args[0]
+        )
+        assert "deal scout" in prompt.lower()
+
+    async def test_no_task_config_runs_single_step(
+        self, runner, data_client, session_manager, send_fn
+    ):
+        """Tasks without task_config still work as single-step (backward compat)."""
+        task = {
+            "task_name": "Simple Task",
+            "cron_expression": "0 8 * * *",
+            "prompt": "Do something",
+            "model": None,
+            "timeout_seconds": 300,
+            "interactive": False,
+        }
+        data_client.post.return_value = {"id": 1, "status": "running"}
+        data_client.put.return_value = {"id": 1, "status": "success"}
+
+        await runner.run_task(task)
+
+        session_manager.send_task.assert_called_once()

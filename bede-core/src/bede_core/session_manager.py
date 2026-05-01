@@ -58,7 +58,9 @@ class SessionManager:
         age_ok = (now - self._interactive["created_ts"]) < self._max_age
         if idle_ok and age_ok:
             return self._interactive["model"]
-        log.info("Interactive session expired (idle_ok=%s, age_ok=%s).", idle_ok, age_ok)
+        log.info(
+            "Interactive session expired (idle_ok=%s, age_ok=%s).", idle_ok, age_ok
+        )
         self._interactive = None
         return None
 

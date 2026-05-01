@@ -1,5 +1,4 @@
 import os
-import pytest
 from unittest.mock import patch
 
 from bede_core.reflection import append_correction
@@ -23,7 +22,9 @@ class TestReflection:
         bede_dir = tmp_path / "Bede"
         bede_dir.mkdir()
         path = bede_dir / "reflection-memory.md"
-        path.write_text("# Reflection Memory\n\n## Corrections\n\n- [2026-04-30 21:00] Old correction\n")
+        path.write_text(
+            "# Reflection Memory\n\n## Corrections\n\n- [2026-04-30 21:00] Old correction\n"
+        )
 
         with patch("bede_core.reflection._git_commit_push"):
             append_correction("New correction", str(tmp_path), "Australia/Sydney")

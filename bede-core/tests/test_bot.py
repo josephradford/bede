@@ -137,9 +137,7 @@ class TestInteractiveCorrections:
     async def test_appends_correction_during_interactive(self, session_manager):
         from bede_core.bot import create_message_handler
 
-        session_manager.send.return_value = ClaudeResult(
-            text="Noted!", session_id="s1"
-        )
+        session_manager.send.return_value = ClaudeResult(text="Noted!", session_id="s1")
         session_manager.is_interactive = True
 
         correction_calls = []
@@ -164,9 +162,7 @@ class TestInteractiveCorrections:
     async def test_no_correction_when_not_interactive(self, session_manager):
         from bede_core.bot import create_message_handler
 
-        session_manager.send.return_value = ClaudeResult(
-            text="Hello!", session_id="s1"
-        )
+        session_manager.send.return_value = ClaudeResult(text="Hello!", session_id="s1")
         session_manager.is_interactive = False
 
         correction_calls = []
