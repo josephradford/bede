@@ -204,3 +204,18 @@ class TestInteractiveHandoff:
         await runner.run_task(task)
 
         session_manager.register_interactive.assert_not_called()
+
+
+class TestCancelTasks:
+    def test_cancel_all_returns_running_names(self, runner):
+        runner._running.add("Morning Briefing")
+        runner._running.add("Deal Scout")
+
+        cancelled = runner.cancel_all()
+
+        assert set(cancelled) == {"Morning Briefing", "Deal Scout"}
+        assert len(runner._running) == 0
+
+    def test_cancel_all_empty_when_nothing_running(self, runner):
+        cancelled = runner.cancel_all()
+        assert cancelled == []

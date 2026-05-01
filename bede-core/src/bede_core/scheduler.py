@@ -146,6 +146,11 @@ class TaskRunner:
     def is_running(self, name: str) -> bool:
         return name in self._running
 
+    def cancel_all(self) -> list[str]:
+        cancelled = list(self._running)
+        self._running.clear()
+        return cancelled
+
     def cancel_task(self, name: str):
         self._running.discard(name)
 

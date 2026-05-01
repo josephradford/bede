@@ -100,12 +100,18 @@ def create_message_handler(
     return handle_message
 
 
-def create_reset_handler(session_manager: SessionManager, allowed_user_id: int):
+def create_reset_handler(session_manager: SessionManager, allowed_user_id: int, runner=None):
     async def handle_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_user.id != allowed_user_id:
             return
         await session_manager.clear_daily_session()
-        await update.message.reply_text("Session cleared. Next message starts fresh.")
+        session_manager.clear_interactive()
+        cancelled = runner.cancel_all() if runner else []
+        if cancelled:
+            names = ", ".join(cancelled)
+            await update.message.reply_text(f"Session cleared. Cancelled running tasks: {names}")
+        else:
+            await update.message.reply_text("Session cleared. Next message starts fresh.")
 
     return handle_reset
 

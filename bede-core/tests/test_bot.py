@@ -186,3 +186,42 @@ class TestInteractiveCorrections:
         await handler(update, context)
 
         assert len(correction_calls) == 0
+
+
+class TestResetCancellation:
+    async def test_reset_cancels_running_tasks(self, session_manager):
+        from bede_core.bot import create_reset_handler
+
+        runner = MagicMock()
+        runner.cancel_all.return_value = ["Morning Briefing", "Deal Scout"]
+
+        handler = create_reset_handler(
+            session_manager, allowed_user_id=12345, runner=runner
+        )
+
+        update = FakeUpdate("/reset", user_id=12345)
+        context = FakeContext()
+        await handler(update, context)
+
+        runner.cancel_all.assert_called_once()
+        session_manager.clear_interactive.assert_called_once()
+        reply_text = update.message.reply_text.call_args.args[0]
+        assert "Morning Briefing" in reply_text
+        assert "Deal Scout" in reply_text
+
+    async def test_reset_no_tasks_running(self, session_manager):
+        from bede_core.bot import create_reset_handler
+
+        runner = MagicMock()
+        runner.cancel_all.return_value = []
+
+        handler = create_reset_handler(
+            session_manager, allowed_user_id=12345, runner=runner
+        )
+
+        update = FakeUpdate("/reset", user_id=12345)
+        context = FakeContext()
+        await handler(update, context)
+
+        reply_text = update.message.reply_text.call_args.args[0]
+        assert "cleared" in reply_text.lower()
