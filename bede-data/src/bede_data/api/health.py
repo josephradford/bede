@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from bede_data.db.connection import get_db
 
 SESSION_GAP_HOURS = 2
+_AGGREGATED_PHASES = ("core", "deep", "rem", "awake", "asleep", "inBed")
 
 router = APIRouter(prefix="/api/health", tags=["health"])
 
@@ -62,12 +63,21 @@ def get_sleep(
     conn: sqlite3.Connection = Depends(get_db),
 ):
     d = _resolve_date(date)
+    placeholders = ",".join("?" for _ in _AGGREGATED_PHASES)
     cursor = conn.execute(
-        "SELECT phase, hours, start_time, end_time, source FROM sleep_phases WHERE date = ? ORDER BY start_time",
-        (d,),
+        f"SELECT phase, hours, start_time, end_time, source FROM sleep_phases WHERE date = ? AND phase IN ({placeholders}) ORDER BY start_time",
+        (d, *_AGGREGATED_PHASES),
     )
-    phases = [dict(row) for row in cursor.fetchall()]
-    session_groups = _group_into_sessions(phases)
+    summary_phases = [dict(row) for row in cursor.fetchall()]
+
+    cursor = conn.execute(
+        f"SELECT phase, hours, start_time, end_time, source FROM sleep_phases WHERE date = ? AND phase NOT IN ({placeholders}) ORDER BY start_time",
+        (d, *_AGGREGATED_PHASES),
+    )
+    detail_phases = [dict(row) for row in cursor.fetchall()]
+
+    phases_for_totals = summary_phases or detail_phases
+    session_groups = _group_into_sessions(phases_for_totals)
     sessions = [_build_session(s) for s in session_groups]
 
     total_hours = round(sum(s["total_hours"] for s in sessions), 2)
@@ -80,7 +90,7 @@ def get_sleep(
         "bedtime": bedtime,
         "wake_time": wake_time,
         "sessions": sessions,
-        "phases": phases,
+        "phases": detail_phases or summary_phases,
     }
 
 
@@ -93,14 +103,10 @@ def get_activity(
     d = _resolve_date(date)
     cursor = conn.execute(
         """
-        SELECT metric, SUM(max_val) AS value
-        FROM (
-            SELECT metric, recorded_at, MAX(value) AS max_val
-            FROM health_metrics
-            WHERE date = ?
-              AND metric IN ('step_count', 'active_energy', 'apple_exercise_time', 'apple_stand_hour')
-            GROUP BY metric, recorded_at
-        )
+        SELECT metric, MAX(value) AS value
+        FROM health_metrics
+        WHERE date = ?
+          AND metric IN ('step_count', 'active_energy', 'apple_exercise_time', 'apple_stand_hour')
         GROUP BY metric
         """,
         (d,),

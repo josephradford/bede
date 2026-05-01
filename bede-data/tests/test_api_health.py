@@ -19,10 +19,10 @@ def _seed_health_data(db):
         "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
         (
             "2026-04-29",
-            "asleepCore",
+            "core",
             3.5,
             "2026-04-28T23:00:00Z",
-            "2026-04-29T02:30:00Z",
+            "2026-04-29T06:00:00Z",
             "Apple Watch",
         ),
     )
@@ -30,10 +30,10 @@ def _seed_health_data(db):
         "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
         (
             "2026-04-29",
-            "asleepDeep",
+            "deep",
             1.5,
-            "2026-04-29T02:30:00Z",
-            "2026-04-29T04:00:00Z",
+            "2026-04-28T23:00:00Z",
+            "2026-04-29T06:00:00Z",
             "Apple Watch",
         ),
     )
@@ -41,9 +41,9 @@ def _seed_health_data(db):
         "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
         (
             "2026-04-29",
-            "asleepREM",
+            "rem",
             2.0,
-            "2026-04-29T04:00:00Z",
+            "2026-04-28T23:00:00Z",
             "2026-04-29T06:00:00Z",
             "Apple Watch",
         ),
@@ -106,8 +106,8 @@ def test_get_activity(client, db):
     assert data["stand_hours"] == 10
 
 
-def test_get_activity_sums_multiple_readings(client, db):
-    """Step count should be the sum of all readings, not just the last one."""
+def test_get_activity_uses_daily_aggregate(client, db):
+    """Daily aggregate (largest value) should be used over individual readings."""
     db.execute(
         "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
         ("2026-04-30", "step_count", 100, "Apple Watch", "2026-04-30T08:00:00Z"),
@@ -118,40 +118,36 @@ def test_get_activity_sums_multiple_readings(client, db):
     )
     db.execute(
         "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
-        ("2026-04-30", "step_count", 400, "Apple Watch", "2026-04-30T10:00:00Z"),
+        ("2026-04-30", "step_count", 8500, "Apple Watch", "2026-04-30T00:00:00Z"),
     )
     db.commit()
     response = client.get("/api/health/activity", params={"date": "2026-04-30"})
     assert response.status_code == 200
     data = response.json()
-    assert data["steps"] == 750
+    assert data["steps"] == 8500
 
 
-def test_get_activity_deduplicates_across_sources(client, db):
-    """Same reading from multiple sources should not be double-counted."""
+def test_get_activity_ignores_duplicate_sources(client, db):
+    """Multiple sources for the same metric should not inflate the value."""
     db.execute(
         "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
-        ("2026-04-30", "step_count", 100, "Apple Watch", "2026-04-30T08:00:00Z"),
+        ("2026-04-30", "step_count", 8500, "Apple Watch", "2026-04-30T00:00:00Z"),
     )
     db.execute(
         "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
         (
             "2026-04-30",
             "step_count",
-            100,
+            8500,
             "GymKit|Apple Watch|iPhone",
-            "2026-04-30T08:00:00Z",
+            "2026-04-30T00:00:00Z",
         ),
-    )
-    db.execute(
-        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
-        ("2026-04-30", "step_count", 200, "Apple Watch", "2026-04-30T09:00:00Z"),
     )
     db.commit()
     response = client.get("/api/health/activity", params={"date": "2026-04-30"})
     assert response.status_code == 200
     data = response.json()
-    assert data["steps"] == 300
+    assert data["steps"] == 8500
 
 
 def test_get_workouts(client, db):
@@ -190,6 +186,109 @@ def test_get_medications(client, db):
     data = response.json()
     assert len(data["medications"]) == 1
     assert data["medications"][0]["medication"] == "Lexapro"
+
+
+def test_get_sleep_totals_from_aggregated_phases_from_individual(client, db):
+    """Totals use aggregated data; phases returns individual HK records for timeline."""
+    # Aggregated analysis rows (lowercase — correct totals)
+    db.execute(
+        "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "2026-04-30",
+            "core",
+            3.99,
+            "2026-04-29T13:18:00Z",
+            "2026-04-30T06:20:00Z",
+            "Apple Watch",
+        ),
+    )
+    db.execute(
+        "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "2026-04-30",
+            "deep",
+            0.59,
+            "2026-04-29T13:18:00Z",
+            "2026-04-30T06:20:00Z",
+            "Apple Watch",
+        ),
+    )
+    db.execute(
+        "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "2026-04-30",
+            "rem",
+            1.36,
+            "2026-04-29T13:18:00Z",
+            "2026-04-30T06:20:00Z",
+            "Apple Watch",
+        ),
+    )
+    # Individual HK records (capitalized — detailed timeline)
+    db.execute(
+        "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "2026-04-30",
+            "Core",
+            1.48,
+            "2026-04-29T14:00:00Z",
+            "2026-04-29T15:30:00Z",
+            "Apple Watch",
+        ),
+    )
+    db.execute(
+        "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "2026-04-30",
+            "Deep",
+            0.21,
+            "2026-04-29T16:00:00Z",
+            "2026-04-29T16:13:00Z",
+            "Apple Watch",
+        ),
+    )
+    db.commit()
+
+    response = client.get("/api/health/sleep", params={"date": "2026-04-30"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_hours"] == 5.94
+    assert len(data["phases"]) == 2
+    assert data["phases"][0]["phase"] == "Core"
+    assert data["phases"][1]["phase"] == "Deep"
+
+
+def test_get_sleep_falls_back_to_individual_phases(client, db):
+    """When no aggregated phases exist, use individual HK records."""
+    db.execute(
+        "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "2026-04-30",
+            "Core",
+            2.0,
+            "2026-04-29T14:00:00Z",
+            "2026-04-29T16:00:00Z",
+            "Apple Watch",
+        ),
+    )
+    db.execute(
+        "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "2026-04-30",
+            "Deep",
+            1.0,
+            "2026-04-29T16:00:00Z",
+            "2026-04-29T17:00:00Z",
+            "Apple Watch",
+        ),
+    )
+    db.commit()
+
+    response = client.get("/api/health/sleep", params={"date": "2026-04-30"})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["phases"]) == 2
+    assert data["total_hours"] == 3.0
 
 
 def test_get_sleep_separates_nap_from_overnight(client, db):
