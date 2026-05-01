@@ -1,3 +1,6 @@
+import json
+
+
 def test_create_schedule(client):
     response = client.post(
         "/api/config/schedules",
@@ -91,9 +94,6 @@ def test_delete_monitored_item(client):
     response = client.delete(f"/api/config/monitored-items/{item_id}")
     assert response.status_code == 200
     assert len(client.get("/api/config/monitored-items").json()["items"]) == 0
-
-
-import json
 
 
 class TestScheduleTaskConfig:
