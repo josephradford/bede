@@ -97,7 +97,15 @@ def _finish_cluster(c: dict) -> dict:
     }
 
 
+class OwnTracksNotConfiguredError(Exception):
+    pass
+
+
 async def fetch_owntracks_points(from_ts: int, to_ts: int) -> list[dict]:
+    if not settings.owntracks_user or not settings.owntracks_device:
+        raise OwnTracksNotConfiguredError(
+            "OWNTRACKS_USER and OWNTRACKS_DEVICE must be set"
+        )
     url = f"{settings.owntracks_url}/api/0/locations"
     params = {
         "user": settings.owntracks_user,

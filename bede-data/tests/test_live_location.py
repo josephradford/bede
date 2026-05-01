@@ -1,6 +1,10 @@
+import pytest
+
 from bede_data.live.location import (
     GeoCache,
+    OwnTracksNotConfiguredError,
     cluster_points,
+    fetch_owntracks_points,
     haversine_m,
 )
 
@@ -62,3 +66,23 @@ def test_geocache_rounds_coordinates():
 def test_geocache_miss():
     cache = GeoCache()
     assert cache.get(-33.8688, 151.2093) is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_owntracks_raises_when_user_not_configured(monkeypatch):
+    from bede_data import config
+
+    monkeypatch.setattr(config.settings, "owntracks_user", "")
+    monkeypatch.setattr(config.settings, "owntracks_device", "phone")
+    with pytest.raises(OwnTracksNotConfiguredError):
+        await fetch_owntracks_points(0, 1000)
+
+
+@pytest.mark.asyncio
+async def test_fetch_owntracks_raises_when_device_not_configured(monkeypatch):
+    from bede_data import config
+
+    monkeypatch.setattr(config.settings, "owntracks_user", "joe")
+    monkeypatch.setattr(config.settings, "owntracks_device", "")
+    with pytest.raises(OwnTracksNotConfiguredError):
+        await fetch_owntracks_points(0, 1000)
