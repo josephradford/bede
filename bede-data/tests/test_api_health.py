@@ -90,6 +90,8 @@ def test_get_sleep(client, db):
     assert data["date"] == "2026-04-29"
     assert data["total_hours"] == 7.0
     assert len(data["phases"]) == 3
+    assert len(data["sessions"]) == 1
+    assert data["sessions"][0]["total_hours"] == 7.0
 
 
 def test_get_activity(client, db):
@@ -184,9 +186,45 @@ def test_get_medications(client, db):
     assert data["medications"][0]["medication"] == "Lexapro"
 
 
+def test_get_sleep_separates_nap_from_overnight(client, db):
+    """Overnight sleep + afternoon nap should be separate sessions."""
+    # Overnight: 11:18 PM -> phases through ~6:20 AM (UTC times)
+    db.execute(
+        "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+        ("2026-04-30", "core", 4.0, "2026-04-29T13:18:00Z", "2026-04-29T17:18:00Z", "Apple Watch"),
+    )
+    db.execute(
+        "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+        ("2026-04-30", "rem", 1.5, "2026-04-29T17:18:00Z", "2026-04-29T18:48:00Z", "Apple Watch"),
+    )
+    db.execute(
+        "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+        ("2026-04-30", "deep", 0.5, "2026-04-29T18:48:00Z", "2026-04-29T19:18:00Z", "Apple Watch"),
+    )
+    # Afternoon nap: 3:12 PM -> 4:20 PM AEST = 05:12 -> 06:20 UTC (3h+ gap from overnight)
+    db.execute(
+        "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+        ("2026-04-30", "asleep", 1.1, "2026-04-30T05:12:00Z", "2026-04-30T06:18:00Z", "Apple Watch"),
+    )
+    db.commit()
+
+    response = client.get("/api/health/sleep", params={"date": "2026-04-30"})
+    assert response.status_code == 200
+    data = response.json()
+
+    assert len(data["sessions"]) == 2
+    assert data["sessions"][0]["total_hours"] == 6.0
+    assert data["sessions"][1]["total_hours"] == 1.1
+    assert data["total_hours"] == 7.1
+    # bedtime/wake_time should be from the primary (first) session
+    assert data["bedtime"] == "2026-04-29T13:18:00Z"
+    assert data["wake_time"] == "2026-04-29T19:18:00Z"
+
+
 def test_get_sleep_no_data(client, db):
     response = client.get("/api/health/sleep", params={"date": "2026-04-29"})
     assert response.status_code == 200
     data = response.json()
     assert data["total_hours"] == 0
     assert data["phases"] == []
+    assert data["sessions"] == []
