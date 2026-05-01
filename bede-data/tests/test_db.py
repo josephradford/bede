@@ -48,7 +48,7 @@ def test_wal_mode_enabled(db):
 def test_schema_version_is_set(db):
     cursor = db.execute("SELECT MAX(version) FROM schema_version")
     version = cursor.fetchone()[0]
-    assert version == 3
+    assert version == 4
 
 
 def test_health_metrics_upsert_by_natural_key(db):
