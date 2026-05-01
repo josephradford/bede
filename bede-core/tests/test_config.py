@@ -6,6 +6,7 @@ def test_settings_defaults():
     os.environ.pop("TELEGRAM_BOT_TOKEN", None)
     os.environ.pop("ALLOWED_USER_ID", None)
     from bede_core.config import Settings
+
     s = Settings(telegram_bot_token="test-token", allowed_user_id=12345)
     assert s.telegram_bot_token == "test-token"
     assert s.allowed_user_id == 12345
@@ -31,6 +32,7 @@ def test_settings_from_env(monkeypatch):
     monkeypatch.setenv("TIMEZONE", "US/Eastern")
     monkeypatch.setenv("BEDE_DATA_URL", "http://localhost:8001")
     from bede_core.config import Settings
+
     s = Settings()
     assert s.telegram_bot_token == "my-token"
     assert s.allowed_user_id == 99999

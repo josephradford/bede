@@ -5,7 +5,6 @@ import time
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from bede_core.claude_cli import ClaudeResult
 from bede_core.session_manager import SessionManager
 from bede_core.telegram_format import md_to_html, chunk_text
 
@@ -63,22 +62,30 @@ def create_message_handler(
 
         if result.timed_out:
             if data_client:
-                await data_client.post("/api/message-queue", body={"message": text, "source": "telegram"})
-                await update.message.reply_text("Request timed out. I've queued your message and will process it when I'm available.")
+                await data_client.post(
+                    "/api/message-queue", body={"message": text, "source": "telegram"}
+                )
+                await update.message.reply_text(
+                    "Request timed out. I've queued your message and will process it when I'm available."
+                )
             else:
                 await update.message.reply_text("Request timed out.")
             return
 
         if result.auth_failure:
             if data_client:
-                await data_client.post("/api/message-queue", body={"message": text, "source": "telegram"})
+                await data_client.post(
+                    "/api/message-queue", body={"message": text, "source": "telegram"}
+                )
             await update.message.reply_text(REAUTH_NOTICE, parse_mode="Markdown")
             return
 
         response_text = result.text or "No response."
 
         if result.stop_reason == "max_tokens":
-            response_text += "\n\n⚠️ _Response was truncated (output token limit reached)._"
+            response_text += (
+                "\n\n⚠️ _Response was truncated (output token limit reached)._"
+            )
 
         await _send_response(update.message, response_text)
 

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from telegram import BotCommand, BotCommandScopeAllPrivateChats
@@ -46,6 +45,8 @@ def _start_health_server(port: int = 8080):
     server = HTTPServer(("0.0.0.0", port), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
+
+
 log = logging.getLogger(__name__)
 
 
@@ -114,7 +115,9 @@ def main():
             BotCommand("triage", "Triage today's emails"),
         ]
         await application.bot.set_my_commands(commands)
-        await application.bot.set_my_commands(commands, scope=BotCommandScopeAllPrivateChats())
+        await application.bot.set_my_commands(
+            commands, scope=BotCommandScopeAllPrivateChats()
+        )
 
         scheduler.start()
         await reload_schedules(scheduler, data_client, runner, settings.timezone)
@@ -133,17 +136,65 @@ def main():
         .build()
     )
 
-    app.add_handler(CommandHandler("start", create_start_handler(settings.allowed_user_id)))
-    app.add_handler(CommandHandler("reset", create_reset_handler(session_manager, settings.allowed_user_id)))
-    app.add_handler(CommandHandler("morning", create_task_trigger_handler("Morning Briefing", runner, data_client, settings.allowed_user_id)))
-    app.add_handler(CommandHandler("evening", create_task_trigger_handler("Evening Reflection", runner, data_client, settings.allowed_user_id)))
-    app.add_handler(CommandHandler("scout", create_task_trigger_handler("Deal Scout", runner, data_client, settings.allowed_user_id)))
-    app.add_handler(CommandHandler("datacheck", create_task_trigger_handler("Evening Data Check", runner, data_client, settings.allowed_user_id)))
-    app.add_handler(CommandHandler("triage", create_task_trigger_handler("Email Triage", runner, data_client, settings.allowed_user_id)))
-    app.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
-        create_message_handler(session_manager, settings.allowed_user_id, settings.timezone, data_client=data_client),
-    ))
+    app.add_handler(
+        CommandHandler("start", create_start_handler(settings.allowed_user_id))
+    )
+    app.add_handler(
+        CommandHandler(
+            "reset", create_reset_handler(session_manager, settings.allowed_user_id)
+        )
+    )
+    app.add_handler(
+        CommandHandler(
+            "morning",
+            create_task_trigger_handler(
+                "Morning Briefing", runner, data_client, settings.allowed_user_id
+            ),
+        )
+    )
+    app.add_handler(
+        CommandHandler(
+            "evening",
+            create_task_trigger_handler(
+                "Evening Reflection", runner, data_client, settings.allowed_user_id
+            ),
+        )
+    )
+    app.add_handler(
+        CommandHandler(
+            "scout",
+            create_task_trigger_handler(
+                "Deal Scout", runner, data_client, settings.allowed_user_id
+            ),
+        )
+    )
+    app.add_handler(
+        CommandHandler(
+            "datacheck",
+            create_task_trigger_handler(
+                "Evening Data Check", runner, data_client, settings.allowed_user_id
+            ),
+        )
+    )
+    app.add_handler(
+        CommandHandler(
+            "triage",
+            create_task_trigger_handler(
+                "Email Triage", runner, data_client, settings.allowed_user_id
+            ),
+        )
+    )
+    app.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND,
+            create_message_handler(
+                session_manager,
+                settings.allowed_user_id,
+                settings.timezone,
+                data_client=data_client,
+            ),
+        )
+    )
 
     log.info("Bede is running.")
     app.run_polling(drop_pending_updates=True)

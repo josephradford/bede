@@ -19,7 +19,11 @@ class TestMemoryManager:
         data_client.get.return_value = {
             "memories": [
                 {"id": 1, "content": "Training for a half marathon", "type": "fact"},
-                {"id": 2, "content": "Don't nag about meditation", "type": "preference"},
+                {
+                    "id": 2,
+                    "content": "Don't nag about meditation",
+                    "type": "preference",
+                },
             ]
         }
         context = await mm.get_context()
@@ -49,10 +53,18 @@ class TestMemoryManager:
         assert context == ""
 
     async def test_propose_memory(self, mm, data_client):
-        data_client.post.return_value = {"id": 5, "content": "Likes camping", "type": "fact"}
+        data_client.post.return_value = {
+            "id": 5,
+            "content": "Likes camping",
+            "type": "fact",
+        }
         result = await mm.store("Likes camping", "fact", source_conversation="sess-1")
         data_client.post.assert_called_once_with(
             "/api/memories",
-            body={"content": "Likes camping", "type": "fact", "source_conversation": "sess-1"},
+            body={
+                "content": "Likes camping",
+                "type": "fact",
+                "source_conversation": "sess-1",
+            },
         )
         assert result["id"] == 5

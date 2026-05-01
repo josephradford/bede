@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from bede_core.claude_cli import ClaudeResult
 
@@ -47,7 +47,10 @@ def quiet_hours_check():
 class TestBotHandlers:
     async def test_rejects_unauthorized_user(self, session_manager):
         from bede_core.bot import create_message_handler
-        handler = create_message_handler(session_manager, allowed_user_id=12345, timezone="Australia/Sydney")
+
+        handler = create_message_handler(
+            session_manager, allowed_user_id=12345, timezone="Australia/Sydney"
+        )
 
         update = FakeUpdate("hello", user_id=99999)
         context = FakeContext()
@@ -58,9 +61,14 @@ class TestBotHandlers:
 
     async def test_handles_normal_message(self, session_manager):
         from bede_core.bot import create_message_handler
-        handler = create_message_handler(session_manager, allowed_user_id=12345, timezone="Australia/Sydney")
 
-        session_manager.send.return_value = ClaudeResult(text="Hi there!", session_id="s1")
+        handler = create_message_handler(
+            session_manager, allowed_user_id=12345, timezone="Australia/Sydney"
+        )
+
+        session_manager.send.return_value = ClaudeResult(
+            text="Hi there!", session_id="s1"
+        )
         update = FakeUpdate("hello", user_id=12345)
         context = FakeContext()
         await handler(update, context)
@@ -70,7 +78,10 @@ class TestBotHandlers:
 
     async def test_handles_timeout(self, session_manager):
         from bede_core.bot import create_message_handler
-        handler = create_message_handler(session_manager, allowed_user_id=12345, timezone="Australia/Sydney")
+
+        handler = create_message_handler(
+            session_manager, allowed_user_id=12345, timezone="Australia/Sydney"
+        )
 
         session_manager.send.return_value = ClaudeResult(timed_out=True)
         update = FakeUpdate("hello", user_id=12345)
@@ -82,7 +93,10 @@ class TestBotHandlers:
 
     async def test_handles_auth_failure(self, session_manager):
         from bede_core.bot import create_message_handler
-        handler = create_message_handler(session_manager, allowed_user_id=12345, timezone="Australia/Sydney")
+
+        handler = create_message_handler(
+            session_manager, allowed_user_id=12345, timezone="Australia/Sydney"
+        )
 
         session_manager.send.return_value = ClaudeResult(auth_failure=True)
         update = FakeUpdate("hello", user_id=12345)
@@ -96,6 +110,7 @@ class TestBotHandlers:
 class TestResetHandler:
     async def test_reset_clears_session(self, session_manager):
         from bede_core.bot import create_reset_handler
+
         handler = create_reset_handler(session_manager, allowed_user_id=12345)
 
         update = FakeUpdate("/reset", user_id=12345)
@@ -108,6 +123,7 @@ class TestResetHandler:
 
     async def test_reset_rejects_unauthorized(self, session_manager):
         from bede_core.bot import create_reset_handler
+
         handler = create_reset_handler(session_manager, allowed_user_id=12345)
 
         update = FakeUpdate("/reset", user_id=99999)

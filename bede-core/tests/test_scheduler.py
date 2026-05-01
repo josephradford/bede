@@ -1,6 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
+from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
 from bede_core.claude_cli import ClaudeResult
@@ -18,7 +17,9 @@ def data_client():
 @pytest.fixture
 def session_manager():
     sm = AsyncMock()
-    sm.send_task.return_value = ClaudeResult(text="Task done!", session_id="task-sess-1")
+    sm.send_task.return_value = ClaudeResult(
+        text="Task done!", session_id="task-sess-1"
+    )
     return sm
 
 
@@ -43,12 +44,26 @@ class TestLoadSchedules:
     async def test_loads_enabled_schedules(self, data_client):
         data_client.get.return_value = {
             "schedules": [
-                {"id": 1, "task_name": "Morning Briefing", "cron_expression": "0 8 * * 1-5",
-                 "prompt": "Give me a briefing", "model": None, "timeout_seconds": 300,
-                 "interactive": False, "enabled": True},
-                {"id": 2, "task_name": "Disabled Task", "cron_expression": "0 9 * * *",
-                 "prompt": "test", "model": None, "timeout_seconds": 300,
-                 "interactive": False, "enabled": False},
+                {
+                    "id": 1,
+                    "task_name": "Morning Briefing",
+                    "cron_expression": "0 8 * * 1-5",
+                    "prompt": "Give me a briefing",
+                    "model": None,
+                    "timeout_seconds": 300,
+                    "interactive": False,
+                    "enabled": True,
+                },
+                {
+                    "id": 2,
+                    "task_name": "Disabled Task",
+                    "cron_expression": "0 9 * * *",
+                    "prompt": "test",
+                    "model": None,
+                    "timeout_seconds": 300,
+                    "interactive": False,
+                    "enabled": False,
+                },
             ]
         }
         schedules = await load_schedules(data_client)
@@ -62,7 +77,9 @@ class TestLoadSchedules:
 
 
 class TestTaskRunner:
-    async def test_run_task_success(self, runner, data_client, session_manager, send_fn):
+    async def test_run_task_success(
+        self, runner, data_client, session_manager, send_fn
+    ):
         task = {
             "id": 1,
             "task_name": "Morning Briefing",
@@ -72,7 +89,11 @@ class TestTaskRunner:
             "timeout_seconds": 300,
             "interactive": False,
         }
-        data_client.post.return_value = {"id": 1, "task_name": "Morning Briefing", "status": "running"}
+        data_client.post.return_value = {
+            "id": 1,
+            "task_name": "Morning Briefing",
+            "status": "running",
+        }
         data_client.put.return_value = {"id": 1, "status": "success"}
 
         await runner.run_task(task)
@@ -83,7 +104,9 @@ class TestTaskRunner:
         assert data_client.post.call_count >= 1
         assert data_client.put.call_count >= 1
 
-    async def test_run_task_timeout(self, runner, data_client, session_manager, send_fn):
+    async def test_run_task_timeout(
+        self, runner, data_client, session_manager, send_fn
+    ):
         task = {
             "id": 1,
             "task_name": "Slow Task",
@@ -101,9 +124,13 @@ class TestTaskRunner:
 
         send_fn.assert_called()
         last_call_text = send_fn.call_args.args[0] if send_fn.call_args.args else ""
-        assert "timed out" in last_call_text.lower() or "timeout" in last_call_text.lower()
+        assert (
+            "timed out" in last_call_text.lower() or "timeout" in last_call_text.lower()
+        )
 
-    async def test_run_task_prevents_duplicate(self, runner, data_client, session_manager, send_fn):
+    async def test_run_task_prevents_duplicate(
+        self, runner, data_client, session_manager, send_fn
+    ):
         task = {
             "id": 1,
             "task_name": "Morning Briefing",

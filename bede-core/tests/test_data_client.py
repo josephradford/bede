@@ -37,7 +37,9 @@ async def test_post_success(client, httpx_mock):
         json={"id": 1, "content": "test"},
         status_code=201,
     )
-    result = await client.post("/api/memories", body={"content": "test", "type": "fact"})
+    result = await client.post(
+        "/api/memories", body={"content": "test", "type": "fact"}
+    )
     assert result == {"id": 1, "content": "test"}
 
 

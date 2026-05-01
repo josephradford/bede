@@ -6,7 +6,11 @@ class DataClient:
         self._base_url = base_url
 
     async def _request(
-        self, method: str, path: str, params: dict | None = None, body: dict | None = None
+        self,
+        method: str,
+        path: str,
+        params: dict | None = None,
+        body: dict | None = None,
     ) -> dict:
         try:
             async with httpx.AsyncClient(base_url=self._base_url, timeout=30.0) as c:
@@ -14,7 +18,10 @@ class DataClient:
                 r.raise_for_status()
                 return r.json()
         except httpx.HTTPStatusError as e:
-            return {"error": f"bede-data returned {e.response.status_code}", "detail": e.response.text}
+            return {
+                "error": f"bede-data returned {e.response.status_code}",
+                "detail": e.response.text,
+            }
         except (httpx.ConnectError, httpx.TimeoutException):
             return {"error": "bede-data unavailable"}
 

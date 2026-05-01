@@ -4,7 +4,7 @@ import logging
 import os
 import signal
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
 
@@ -28,10 +28,14 @@ def build_command(
     mcp_config: str | None = None,
 ) -> list[str]:
     cmd = [
-        "claude", "-p", prompt,
-        "--model", model,
+        "claude",
+        "-p",
+        prompt,
+        "--model",
+        model,
         "--dangerously-skip-permissions",
-        "--output-format", "json",
+        "--output-format",
+        "json",
     ]
     if session_id:
         cmd += ["--resume", session_id]
@@ -119,7 +123,9 @@ class ClaudeCli:
         session_id: str | None = None,
         timeout: int | None = None,
     ) -> ClaudeResult:
-        cmd = build_command(prompt, model, session_id=session_id, mcp_config=self._mcp_config)
+        cmd = build_command(
+            prompt, model, session_id=session_id, mcp_config=self._mcp_config
+        )
         env = self._build_env()
         effective_timeout = timeout or self._timeout
 
@@ -138,7 +144,9 @@ class ClaudeCli:
         if session_id and "no conversation found" in proc.stderr.lower():
             result.stale_session = True
 
-        if proc.returncode != 0 and any(kw in proc.stderr.lower() for kw in _AUTH_KEYWORDS):
+        if proc.returncode != 0 and any(
+            kw in proc.stderr.lower() for kw in _AUTH_KEYWORDS
+        ):
             result.auth_failure = True
 
         if not result.text and proc.returncode != 0:

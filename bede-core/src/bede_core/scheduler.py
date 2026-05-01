@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import time
 from datetime import datetime, timezone
@@ -7,7 +6,6 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from bede_core.claude_cli import ClaudeResult
 from bede_core.data_client import DataClient
 from bede_core.quiet_hours import is_quiet_hours
 from bede_core.session_manager import SessionManager
@@ -46,14 +44,23 @@ class TaskRunner:
 
     async def _log_start(self, task_name: str) -> int | None:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        result = await self._data.post("/api/tasks/log", body={
-            "task_name": task_name,
-            "start_time": now,
-            "status": "running",
-        })
+        result = await self._data.post(
+            "/api/tasks/log",
+            body={
+                "task_name": task_name,
+                "start_time": now,
+                "status": "running",
+            },
+        )
         return result.get("id")
 
-    async def _log_end(self, exec_id: int | None, status: str, duration: float, error: str | None = None):
+    async def _log_end(
+        self,
+        exec_id: int | None,
+        status: str,
+        duration: float,
+        error: str | None = None,
+    ):
         if exec_id is None:
             return
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -90,7 +97,6 @@ class TaskRunner:
         prompt = task["prompt"]
         model = task.get("model")
         timeout = task.get("timeout_seconds", 300)
-        interactive = task.get("interactive", False)
 
         now = datetime.now(self._tz)
         now_str = now.strftime("%H:%M")
@@ -122,9 +128,13 @@ class TaskRunner:
         output = header + text
         now_check = datetime.now(self._tz)
         if is_quiet_hours(now_check, self._quiet_start, self._quiet_end):
-            await self._data.post("/api/message-queue", body={
-                "message": output, "source": f"scheduler:{name}",
-            })
+            await self._data.post(
+                "/api/message-queue",
+                body={
+                    "message": output,
+                    "source": f"scheduler:{name}",
+                },
+            )
             log.info("Task '%s' output queued (quiet hours).", name)
         else:
             await self._send(output)
@@ -146,7 +156,12 @@ def _next_run_str(cron: str, tz: ZoneInfo, now: datetime) -> str:
     return ""
 
 
-async def reload_schedules(scheduler: AsyncIOScheduler, data_client: DataClient, runner: TaskRunner, timezone: str):
+async def reload_schedules(
+    scheduler: AsyncIOScheduler,
+    data_client: DataClient,
+    runner: TaskRunner,
+    timezone: str,
+):
     schedules = await load_schedules(data_client)
     tz = ZoneInfo(timezone)
 

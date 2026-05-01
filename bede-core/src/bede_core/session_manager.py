@@ -45,7 +45,9 @@ class SessionManager:
 
     async def _store_daily_session(self, session_id: str):
         date = self._today()
-        await self._data.post("/api/sessions/daily", body={"date": date, "session_id": session_id})
+        await self._data.post(
+            "/api/sessions/daily", body={"date": date, "session_id": session_id}
+        )
         self._session_cleared = False
 
     async def _get_scratchpad(self) -> str:
@@ -60,17 +62,22 @@ class SessionManager:
     async def _append_scratchpad(self, content: str):
         date = self._today()
         entry_time = datetime.now(self._tz).strftime("%H:%M")
-        await self._data.post("/api/scratchpad", body={
-            "date": date,
-            "entry_time": entry_time,
-            "content": content,
-        })
+        await self._data.post(
+            "/api/scratchpad",
+            body={
+                "date": date,
+                "entry_time": entry_time,
+                "content": content,
+            },
+        )
 
     async def _build_context(self, message: str, is_new_session: bool) -> str:
         parts: list[str] = []
 
         now = datetime.now(self._tz)
-        parts.append(f"Current date and time: {now.strftime('%A, %d %B %Y %H:%M')} ({self._tz})")
+        parts.append(
+            f"Current date and time: {now.strftime('%A, %d %B %Y %H:%M')} ({self._tz})"
+        )
 
         memory_context = await self._memory.get_context()
         if memory_context:
@@ -86,12 +93,14 @@ class SessionManager:
 
     def _pull_vault(self):
         import os
+
         if not os.path.isdir(f"{self._vault_path}/.git"):
             return
         try:
             subprocess.run(
                 ["git", "-C", self._vault_path, "pull", "--ff-only"],
-                capture_output=True, timeout=30,
+                capture_output=True,
+                timeout=30,
             )
         except Exception as e:
             log.warning("Vault pull failed: %s", e)
@@ -103,6 +112,7 @@ class SessionManager:
         timeout: int | None = None,
     ) -> ClaudeResult:
         import asyncio
+
         await asyncio.to_thread(self._pull_vault)
 
         effective_model = model or self._model
