@@ -97,6 +97,7 @@ class TaskRunner:
         prompt = task["prompt"]
         model = task.get("model")
         timeout = task.get("timeout_seconds", 300)
+        interactive = task.get("interactive", False)
 
         now = datetime.now(self._tz)
         now_str = now.strftime("%H:%M")
@@ -138,6 +139,9 @@ class TaskRunner:
             log.info("Task '%s' output queued (quiet hours).", name)
         else:
             await self._send(output)
+
+        if interactive and model and not result.timed_out:
+            self._session.register_interactive(model)
 
     def is_running(self, name: str) -> bool:
         return name in self._running

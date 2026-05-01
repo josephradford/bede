@@ -145,3 +145,62 @@ class TestTaskRunner:
         await runner.run_task(task)
 
         session_manager.send_task.assert_not_called()
+
+
+class TestInteractiveHandoff:
+    async def test_interactive_task_registers_session(
+        self, runner, data_client, session_manager, send_fn
+    ):
+        task = {
+            "task_name": "Evening Reflection",
+            "cron_expression": "0 21 * * *",
+            "prompt": "Write the evening reflection",
+            "model": "claude-sonnet-4-5-20250514",
+            "timeout_seconds": 300,
+            "interactive": True,
+        }
+        data_client.post.return_value = {"id": 1, "status": "running"}
+        data_client.put.return_value = {"id": 1, "status": "success"}
+
+        await runner.run_task(task)
+
+        session_manager.register_interactive.assert_called_once_with(
+            "claude-sonnet-4-5-20250514"
+        )
+
+    async def test_non_interactive_task_does_not_register(
+        self, runner, data_client, session_manager, send_fn
+    ):
+        task = {
+            "task_name": "Morning Briefing",
+            "cron_expression": "0 8 * * 1-5",
+            "prompt": "Give me a briefing",
+            "model": None,
+            "timeout_seconds": 300,
+            "interactive": False,
+        }
+        data_client.post.return_value = {"id": 1, "status": "running"}
+        data_client.put.return_value = {"id": 1, "status": "success"}
+
+        await runner.run_task(task)
+
+        session_manager.register_interactive.assert_not_called()
+
+    async def test_interactive_not_registered_on_timeout(
+        self, runner, data_client, session_manager, send_fn
+    ):
+        task = {
+            "task_name": "Evening Reflection",
+            "cron_expression": "0 21 * * *",
+            "prompt": "Write the evening reflection",
+            "model": "claude-sonnet-4-5-20250514",
+            "timeout_seconds": 60,
+            "interactive": True,
+        }
+        session_manager.send_task.return_value = ClaudeResult(timed_out=True)
+        data_client.post.return_value = {"id": 1, "status": "running"}
+        data_client.put.return_value = {"id": 1, "status": "timeout"}
+
+        await runner.run_task(task)
+
+        session_manager.register_interactive.assert_not_called()
