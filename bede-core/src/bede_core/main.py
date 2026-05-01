@@ -1,4 +1,5 @@
 import logging
+from functools import partial
 
 from telegram import BotCommand, BotCommandScopeAllPrivateChats
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
@@ -13,6 +14,7 @@ from bede_core.claude_cli import ClaudeCli
 from bede_core.config import Settings
 from bede_core.data_client import DataClient
 from bede_core.memory_manager import MemoryManager
+from bede_core.reflection import append_correction
 from bede_core.scheduler import TaskRunner, reload_schedules, setup_scheduler
 from bede_core.session_manager import SessionManager
 from bede_core.telegram_format import md_to_html, chunk_text
@@ -94,6 +96,12 @@ def main():
                     )
                 except Exception as e:
                     log.error("Failed to send Telegram message: %s", e)
+
+    correction_fn = partial(
+        append_correction,
+        vault_path=settings.vault_path,
+        timezone=settings.timezone,
+    )
 
     runner = TaskRunner(
         data_client=data_client,
@@ -194,6 +202,7 @@ def main():
                 settings.allowed_user_id,
                 settings.timezone,
                 data_client=data_client,
+                append_correction_fn=correction_fn,
             ),
         )
     )

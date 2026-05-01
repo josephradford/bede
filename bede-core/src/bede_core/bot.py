@@ -45,6 +45,7 @@ def create_message_handler(
     allowed_user_id: int,
     timezone: str,
     data_client=None,
+    append_correction_fn=None,
 ):
     async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_user.id != allowed_user_id:
@@ -90,6 +91,9 @@ def create_message_handler(
             response_text += (
                 "\n\n⚠️ _Response was truncated (output token limit reached)._"
             )
+
+        if session_manager.is_interactive and append_correction_fn:
+            await asyncio.to_thread(append_correction_fn, text)
 
         await _send_response(update.message, response_text)
 
