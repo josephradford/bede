@@ -1,3 +1,4 @@
+import httpx
 import pytest
 
 from bede_data.live.location import (
@@ -86,3 +87,26 @@ async def test_fetch_owntracks_raises_when_device_not_configured(monkeypatch):
     monkeypatch.setattr(config.settings, "owntracks_device", "")
     with pytest.raises(OwnTracksNotConfiguredError):
         await fetch_owntracks_points(0, 1000)
+
+
+@pytest.mark.asyncio
+async def test_fetch_owntracks_returns_empty_on_416(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from bede_data import config
+
+    monkeypatch.setattr(config.settings, "owntracks_user", "joe")
+    monkeypatch.setattr(config.settings, "owntracks_device", "phone")
+    monkeypatch.setattr(config.settings, "owntracks_url", "http://owntracks-test:8083")
+
+    mock_response = AsyncMock()
+    mock_response.status_code = 416
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.get = AsyncMock(return_value=mock_response)
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: mock_client)
+    result = await fetch_owntracks_points(0, 1000)
+    assert result == []

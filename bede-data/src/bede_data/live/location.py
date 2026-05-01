@@ -115,6 +115,8 @@ async def fetch_owntracks_points(from_ts: int, to_ts: int) -> list[dict]:
     }
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(url, params=params)
+        if resp.status_code == 416:
+            return []
         resp.raise_for_status()
         return resp.json().get("data", [])
 
