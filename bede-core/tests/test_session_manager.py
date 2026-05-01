@@ -1,3 +1,5 @@
+import time
+
 import pytest
 from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
@@ -173,3 +175,105 @@ class TestSessionManager:
             if c.args and c.args[0] == "/api/scratchpad"
         ]
         assert len(scratchpad_calls) == 0
+
+
+class TestInteractiveSession:
+    async def test_register_interactive_overrides_model(
+        self, sm, data_client, claude_cli
+    ):
+        data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
+        claude_cli.run.return_value = ClaudeResult(
+            text="Reply!", session_id="sess-1"
+        )
+
+        sm.register_interactive("claude-sonnet-4-5-20250514")
+        await sm.send("Hello")
+
+        call_kwargs = claude_cli.run.call_args.kwargs
+        assert call_kwargs["model"] == "claude-sonnet-4-5-20250514"
+
+    async def test_interactive_refreshes_idle_on_send(
+        self, sm, data_client, claude_cli
+    ):
+        data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
+        claude_cli.run.return_value = ClaudeResult(
+            text="Reply!", session_id="sess-1"
+        )
+
+        sm.register_interactive("claude-sonnet-4-5-20250514")
+        await sm.send("Message 1")
+        await sm.send("Message 2")
+
+        assert claude_cli.run.call_count == 2
+        for call in claude_cli.run.call_args_list:
+            assert call.kwargs["model"] == "claude-sonnet-4-5-20250514"
+
+    async def test_interactive_expires_after_idle_timeout(
+        self, data_client, claude_cli, memory_manager
+    ):
+        sm = SessionManager(
+            data_client=data_client,
+            claude_cli=claude_cli,
+            memory_manager=memory_manager,
+            timezone="Australia/Sydney",
+            model="claude-haiku-4-5-20251001",
+            vault_path="/vault",
+            interactive_idle_timeout=0.01,
+            interactive_max_age=3600,
+        )
+        data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
+        claude_cli.run.return_value = ClaudeResult(
+            text="Reply!", session_id="sess-1"
+        )
+
+        sm.register_interactive("claude-sonnet-4-5-20250514")
+        time.sleep(0.02)
+        await sm.send("Hello")
+
+        call_kwargs = claude_cli.run.call_args.kwargs
+        assert call_kwargs["model"] == "claude-haiku-4-5-20251001"
+
+    async def test_interactive_expires_after_max_age(
+        self, data_client, claude_cli, memory_manager
+    ):
+        sm = SessionManager(
+            data_client=data_client,
+            claude_cli=claude_cli,
+            memory_manager=memory_manager,
+            timezone="Australia/Sydney",
+            model="claude-haiku-4-5-20251001",
+            vault_path="/vault",
+            interactive_idle_timeout=3600,
+            interactive_max_age=0.01,
+        )
+        data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
+        claude_cli.run.return_value = ClaudeResult(
+            text="Reply!", session_id="sess-1"
+        )
+
+        sm.register_interactive("claude-sonnet-4-5-20250514")
+        time.sleep(0.02)
+        await sm.send("Hello")
+
+        call_kwargs = claude_cli.run.call_args.kwargs
+        assert call_kwargs["model"] == "claude-haiku-4-5-20251001"
+
+    async def test_clear_interactive(self, sm, data_client, claude_cli):
+        data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
+        claude_cli.run.return_value = ClaudeResult(
+            text="Reply!", session_id="sess-1"
+        )
+
+        sm.register_interactive("claude-sonnet-4-5-20250514")
+        sm.clear_interactive()
+        await sm.send("Hello")
+
+        call_kwargs = claude_cli.run.call_args.kwargs
+        assert call_kwargs["model"] == "claude-sonnet-4-5-20250514"
+
+    def test_is_interactive(self, sm):
+        assert sm.is_interactive is False
+        sm.register_interactive("claude-sonnet-4-5-20250514")
+        assert sm.is_interactive is True
+        sm.clear_interactive()
+        assert sm.is_interactive is False

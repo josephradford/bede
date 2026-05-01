@@ -1,5 +1,6 @@
 import logging
 import subprocess
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -19,6 +20,8 @@ class SessionManager:
         timezone: str,
         model: str,
         vault_path: str,
+        interactive_idle_timeout: float = 1800,
+        interactive_max_age: float = 7200,
     ):
         self._data = data_client
         self._cli = claude_cli
@@ -27,6 +30,37 @@ class SessionManager:
         self._model = model
         self._vault_path = vault_path
         self._session_cleared = False
+        self._idle_timeout = interactive_idle_timeout
+        self._max_age = interactive_max_age
+        self._interactive: dict | None = None
+
+    def register_interactive(self, model: str):
+        now = time.monotonic()
+        self._interactive = {"model": model, "idle_ts": now, "created_ts": now}
+        log.info("Interactive session registered (model: %s)", model)
+
+    def clear_interactive(self):
+        self._interactive = None
+
+    @property
+    def is_interactive(self) -> bool:
+        return self._get_interactive_model() is not None
+
+    @property
+    def interactive_model(self) -> str | None:
+        return self._get_interactive_model()
+
+    def _get_interactive_model(self) -> str | None:
+        if self._interactive is None:
+            return None
+        now = time.monotonic()
+        idle_ok = (now - self._interactive["idle_ts"]) < self._idle_timeout
+        age_ok = (now - self._interactive["created_ts"]) < self._max_age
+        if idle_ok and age_ok:
+            return self._interactive["model"]
+        log.info("Interactive session expired (idle_ok=%s, age_ok=%s).", idle_ok, age_ok)
+        self._interactive = None
+        return None
 
     def _today(self) -> str:
         return datetime.now(self._tz).strftime("%Y-%m-%d")
@@ -115,7 +149,12 @@ class SessionManager:
 
         await asyncio.to_thread(self._pull_vault)
 
-        effective_model = model or self._model
+        interactive_model = self._get_interactive_model()
+        if interactive_model:
+            effective_model = model or interactive_model
+        else:
+            effective_model = model or self._model
+
         session_id = await self._get_daily_session_id()
         is_new_session = session_id is None
 
@@ -148,6 +187,9 @@ class SessionManager:
         if result.text and not result.timed_out and not result.auth_failure:
             summary = f"User: {message[:100]}\nBede: {result.text[:200]}"
             await self._append_scratchpad(summary)
+
+        if self._interactive and not result.timed_out and not result.auth_failure:
+            self._interactive["idle_ts"] = time.monotonic()
 
         return result
 

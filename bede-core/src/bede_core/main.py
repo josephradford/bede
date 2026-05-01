@@ -72,6 +72,8 @@ def main():
         timezone=settings.timezone,
         model=settings.claude_model,
         vault_path=settings.vault_path,
+        interactive_idle_timeout=settings.interactive_idle_timeout_minutes * 60,
+        interactive_max_age=settings.interactive_max_age_hours * 3600,
     )
 
     async def send_telegram(text: str):
