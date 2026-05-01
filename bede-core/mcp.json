@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "personal-data": {
+      "type": "url",
+      "url": "http://bede-data-mcp:8002/mcp"
+    },
+    "workspace": {
+      "type": "url",
+      "url": "http://bede-workspace-mcp:8003/mcp"
+    },
+    "browser": {
+      "type": "url",
+      "url": "http://bede-browser-mcp:8004/mcp"
+    }
+  }
+}
