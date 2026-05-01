@@ -15,5 +15,6 @@ class Settings(BaseSettings):
     quiet_hours_start: int = 22
     quiet_hours_end: int = 7
     vault_path: str = "/vault"
+    mcp_config_path: str = "/app/mcp.json"
 
     model_config = {"env_prefix": "", "case_sensitive": False}

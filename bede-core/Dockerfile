@@ -21,6 +21,7 @@ RUN uv sync --no-dev --no-install-project
 
 COPY src/ src/
 COPY scripts/ scripts/
+COPY mcp.json .
 
 RUN uv sync --no-dev && \
     chmod +x scripts/entrypoint.sh && \

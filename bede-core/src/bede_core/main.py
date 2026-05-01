@@ -59,6 +59,7 @@ def main():
         workdir=settings.claude_workdir,
         timeout=settings.claude_timeout_seconds,
         filter_env_keys=["TELEGRAM_BOT_TOKEN", "ALLOWED_USER_ID", "INGEST_WRITE_TOKEN"],
+        mcp_config=settings.mcp_config_path,
     )
 
     memory_manager = MemoryManager(data_client)
