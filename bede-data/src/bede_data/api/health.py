@@ -50,15 +50,26 @@ def get_activity(
 ):
     d = _resolve_date(date)
     cursor = conn.execute(
-        "SELECT metric, value FROM health_metrics WHERE date = ?", (d,)
+        """
+        SELECT metric, SUM(max_val) AS value
+        FROM (
+            SELECT metric, recorded_at, MAX(value) AS max_val
+            FROM health_metrics
+            WHERE date = ?
+              AND metric IN ('step_count', 'active_energy', 'apple_exercise_time', 'apple_stand_hour')
+            GROUP BY metric, recorded_at
+        )
+        GROUP BY metric
+        """,
+        (d,),
     )
     metrics = {row["metric"]: row["value"] for row in cursor.fetchall()}
     return {
         "date": d,
-        "steps": metrics.get("step_count", 0),
-        "active_energy": metrics.get("active_energy", 0),
-        "exercise_minutes": metrics.get("apple_exercise_time", 0),
-        "stand_hours": metrics.get("apple_stand_hour", 0),
+        "steps": round(metrics.get("step_count", 0)),
+        "active_energy": round(metrics.get("active_energy", 0), 1),
+        "exercise_minutes": round(metrics.get("apple_exercise_time", 0)),
+        "stand_hours": round(metrics.get("apple_stand_hour", 0)),
     }
 
 

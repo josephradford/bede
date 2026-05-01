@@ -104,6 +104,48 @@ def test_get_activity(client, db):
     assert data["stand_hours"] == 10
 
 
+def test_get_activity_sums_multiple_readings(client, db):
+    """Step count should be the sum of all readings, not just the last one."""
+    db.execute(
+        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
+        ("2026-04-30", "step_count", 100, "Apple Watch", "2026-04-30T08:00:00Z"),
+    )
+    db.execute(
+        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
+        ("2026-04-30", "step_count", 250, "Apple Watch", "2026-04-30T09:00:00Z"),
+    )
+    db.execute(
+        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
+        ("2026-04-30", "step_count", 400, "Apple Watch", "2026-04-30T10:00:00Z"),
+    )
+    db.commit()
+    response = client.get("/api/health/activity", params={"date": "2026-04-30"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["steps"] == 750
+
+
+def test_get_activity_deduplicates_across_sources(client, db):
+    """Same reading from multiple sources should not be double-counted."""
+    db.execute(
+        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
+        ("2026-04-30", "step_count", 100, "Apple Watch", "2026-04-30T08:00:00Z"),
+    )
+    db.execute(
+        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
+        ("2026-04-30", "step_count", 100, "GymKit|Apple Watch|iPhone", "2026-04-30T08:00:00Z"),
+    )
+    db.execute(
+        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
+        ("2026-04-30", "step_count", 200, "Apple Watch", "2026-04-30T09:00:00Z"),
+    )
+    db.commit()
+    response = client.get("/api/health/activity", params={"date": "2026-04-30"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["steps"] == 300
+
+
 def test_get_workouts(client, db):
     _seed_health_data(db)
     response = client.get("/api/health/workouts", params={"date": "2026-04-29"})
