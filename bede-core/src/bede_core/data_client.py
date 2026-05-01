@@ -4,6 +4,16 @@ import httpx
 class DataClient:
     def __init__(self, base_url: str):
         self._base_url = base_url
+        self._client: httpx.AsyncClient | None = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(base_url=self._base_url, timeout=30.0)
+        return self._client
+
+    async def close(self):
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
 
     async def _request(
         self,
@@ -13,10 +23,10 @@ class DataClient:
         body: dict | None = None,
     ) -> dict:
         try:
-            async with httpx.AsyncClient(base_url=self._base_url, timeout=30.0) as c:
-                r = await c.request(method, path, params=params, json=body)
-                r.raise_for_status()
-                return r.json()
+            client = self._get_client()
+            r = await client.request(method, path, params=params, json=body)
+            r.raise_for_status()
+            return r.json()
         except httpx.HTTPStatusError as e:
             return {
                 "error": f"bede-data returned {e.response.status_code}",

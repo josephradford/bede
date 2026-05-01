@@ -139,6 +139,9 @@ class TaskRunner:
         else:
             await self._send(output)
 
+    def is_running(self, name: str) -> bool:
+        return name in self._running
+
     def cancel_task(self, name: str):
         self._running.discard(name)
 

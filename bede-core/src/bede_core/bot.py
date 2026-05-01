@@ -57,6 +57,10 @@ def create_message_handler(
         typing_task = asyncio.create_task(_keep_typing(context.bot, chat_id))
         try:
             result = await session_manager.send(text)
+        except Exception as e:
+            log.error("Unexpected error handling message: %s", e)
+            await update.message.reply_text("Something went wrong. Please try again.")
+            return
         finally:
             typing_task.cancel()
 
@@ -124,7 +128,7 @@ def create_task_trigger_handler(
         if update.effective_user.id != allowed_user_id:
             return
 
-        if task_name in runner._running:
+        if runner.is_running(task_name):
             await update.message.reply_text(f"⚠️ {task_name} is already running.")
             return
 
