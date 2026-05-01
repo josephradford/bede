@@ -188,8 +188,8 @@ def test_get_medications(client, db):
     assert data["medications"][0]["medication"] == "Lexapro"
 
 
-def test_get_sleep_prefers_aggregated_phases(client, db):
-    """When both aggregated and individual HK phases exist, only use aggregated."""
+def test_get_sleep_totals_from_aggregated_phases_from_individual(client, db):
+    """Totals use aggregated data; phases returns individual HK records for timeline."""
     # Aggregated analysis rows (lowercase — correct totals)
     db.execute(
         "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
@@ -224,7 +224,7 @@ def test_get_sleep_prefers_aggregated_phases(client, db):
             "Apple Watch",
         ),
     )
-    # Individual HK records (capitalized — would double-count if included)
+    # Individual HK records (capitalized — detailed timeline)
     db.execute(
         "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
         (
@@ -252,8 +252,10 @@ def test_get_sleep_prefers_aggregated_phases(client, db):
     response = client.get("/api/health/sleep", params={"date": "2026-04-30"})
     assert response.status_code == 200
     data = response.json()
-    assert len(data["phases"]) == 3
     assert data["total_hours"] == 5.94
+    assert len(data["phases"]) == 2
+    assert data["phases"][0]["phase"] == "Core"
+    assert data["phases"][1]["phase"] == "Deep"
 
 
 def test_get_sleep_falls_back_to_individual_phases(client, db):
