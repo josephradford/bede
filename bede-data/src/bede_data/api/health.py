@@ -34,7 +34,11 @@ def _group_into_sessions(phases: list[dict]) -> list[list[dict]]:
     for phase in phases[1:]:
         prev_end = _parse_utc(sessions[-1][-1]["end_time"])
         curr_start = _parse_utc(phase["start_time"])
-        if prev_end and curr_start and (curr_start - prev_end).total_seconds() > SESSION_GAP_HOURS * 3600:
+        if (
+            prev_end
+            and curr_start
+            and (curr_start - prev_end).total_seconds() > SESSION_GAP_HOURS * 3600
+        ):
             sessions.append([phase])
         else:
             sessions[-1].append(phase)

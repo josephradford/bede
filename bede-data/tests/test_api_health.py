@@ -135,7 +135,13 @@ def test_get_activity_deduplicates_across_sources(client, db):
     )
     db.execute(
         "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
-        ("2026-04-30", "step_count", 100, "GymKit|Apple Watch|iPhone", "2026-04-30T08:00:00Z"),
+        (
+            "2026-04-30",
+            "step_count",
+            100,
+            "GymKit|Apple Watch|iPhone",
+            "2026-04-30T08:00:00Z",
+        ),
     )
     db.execute(
         "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
@@ -191,20 +197,48 @@ def test_get_sleep_separates_nap_from_overnight(client, db):
     # Overnight: 11:18 PM -> phases through ~6:20 AM (UTC times)
     db.execute(
         "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
-        ("2026-04-30", "core", 4.0, "2026-04-29T13:18:00Z", "2026-04-29T17:18:00Z", "Apple Watch"),
+        (
+            "2026-04-30",
+            "core",
+            4.0,
+            "2026-04-29T13:18:00Z",
+            "2026-04-29T17:18:00Z",
+            "Apple Watch",
+        ),
     )
     db.execute(
         "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
-        ("2026-04-30", "rem", 1.5, "2026-04-29T17:18:00Z", "2026-04-29T18:48:00Z", "Apple Watch"),
+        (
+            "2026-04-30",
+            "rem",
+            1.5,
+            "2026-04-29T17:18:00Z",
+            "2026-04-29T18:48:00Z",
+            "Apple Watch",
+        ),
     )
     db.execute(
         "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
-        ("2026-04-30", "deep", 0.5, "2026-04-29T18:48:00Z", "2026-04-29T19:18:00Z", "Apple Watch"),
+        (
+            "2026-04-30",
+            "deep",
+            0.5,
+            "2026-04-29T18:48:00Z",
+            "2026-04-29T19:18:00Z",
+            "Apple Watch",
+        ),
     )
     # Afternoon nap: 3:12 PM -> 4:20 PM AEST = 05:12 -> 06:20 UTC (3h+ gap from overnight)
     db.execute(
         "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
-        ("2026-04-30", "asleep", 1.1, "2026-04-30T05:12:00Z", "2026-04-30T06:18:00Z", "Apple Watch"),
+        (
+            "2026-04-30",
+            "asleep",
+            1.1,
+            "2026-04-30T05:12:00Z",
+            "2026-04-30T06:18:00Z",
+            "Apple Watch",
+        ),
     )
     db.commit()
 
