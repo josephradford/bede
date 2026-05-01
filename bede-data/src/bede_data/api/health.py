@@ -1,9 +1,11 @@
 import sqlite3
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
 
 from bede_data.db.connection import get_db
+
+SESSION_GAP_HOURS = 2
 
 router = APIRouter(prefix="/api/health", tags=["health"])
 
@@ -14,6 +16,43 @@ def _resolve_date(date_str: str) -> str:
     if date_str == "yesterday":
         return (date.today() - timedelta(days=1)).isoformat()
     return date_str
+
+
+def _parse_utc(ts: str | None) -> datetime | None:
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _group_into_sessions(phases: list[dict]) -> list[list[dict]]:
+    if not phases:
+        return []
+    sessions: list[list[dict]] = [[phases[0]]]
+    for phase in phases[1:]:
+        prev_end = _parse_utc(sessions[-1][-1]["end_time"])
+        curr_start = _parse_utc(phase["start_time"])
+        if (
+            prev_end
+            and curr_start
+            and (curr_start - prev_end).total_seconds() > SESSION_GAP_HOURS * 3600
+        ):
+            sessions.append([phase])
+        else:
+            sessions[-1].append(phase)
+    return sessions
+
+
+def _build_session(phases: list[dict]) -> dict:
+    total_hours = round(sum(p["hours"] for p in phases), 2)
+    return {
+        "total_hours": total_hours,
+        "bedtime": phases[0]["start_time"],
+        "wake_time": phases[-1]["end_time"],
+        "phases": phases,
+    }
 
 
 @router.get("/sleep")
@@ -28,16 +67,19 @@ def get_sleep(
         (d,),
     )
     phases = [dict(row) for row in cursor.fetchall()]
-    total_hours = round(sum(p["hours"] for p in phases), 2)
+    session_groups = _group_into_sessions(phases)
+    sessions = [_build_session(s) for s in session_groups]
 
-    bedtime = phases[0]["start_time"] if phases else None
-    wake_time = phases[-1]["end_time"] if phases else None
+    total_hours = round(sum(s["total_hours"] for s in sessions), 2)
+    bedtime = sessions[0]["bedtime"] if sessions else None
+    wake_time = sessions[0]["wake_time"] if sessions else None
 
     return {
         "date": d,
         "total_hours": total_hours,
         "bedtime": bedtime,
         "wake_time": wake_time,
+        "sessions": sessions,
         "phases": phases,
     }
 
@@ -50,15 +92,26 @@ def get_activity(
 ):
     d = _resolve_date(date)
     cursor = conn.execute(
-        "SELECT metric, value FROM health_metrics WHERE date = ?", (d,)
+        """
+        SELECT metric, SUM(max_val) AS value
+        FROM (
+            SELECT metric, recorded_at, MAX(value) AS max_val
+            FROM health_metrics
+            WHERE date = ?
+              AND metric IN ('step_count', 'active_energy', 'apple_exercise_time', 'apple_stand_hour')
+            GROUP BY metric, recorded_at
+        )
+        GROUP BY metric
+        """,
+        (d,),
     )
     metrics = {row["metric"]: row["value"] for row in cursor.fetchall()}
     return {
         "date": d,
-        "steps": metrics.get("step_count", 0),
-        "active_energy": metrics.get("active_energy", 0),
-        "exercise_minutes": metrics.get("apple_exercise_time", 0),
-        "stand_hours": metrics.get("apple_stand_hour", 0),
+        "steps": round(metrics.get("step_count", 0)),
+        "active_energy": round(metrics.get("active_energy", 0), 1),
+        "exercise_minutes": round(metrics.get("apple_exercise_time", 0)),
+        "stand_hours": round(metrics.get("apple_stand_hour", 0)),
     }
 
 

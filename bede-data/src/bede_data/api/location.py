@@ -3,7 +3,10 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query
 
+from fastapi.responses import JSONResponse
+
 from bede_data.live.location import (
+    OwnTracksNotConfiguredError,
     cluster_points,
     fetch_owntracks_points,
     reverse_geocode,
@@ -32,7 +35,10 @@ async def get_location_summary(
 ):
     d = _resolve_date(date)
     from_ts, to_ts = _date_to_timestamps(d)
-    points = await fetch_owntracks_points(from_ts, to_ts)
+    try:
+        points = await fetch_owntracks_points(from_ts, to_ts)
+    except OwnTracksNotConfiguredError as e:
+        return JSONResponse(status_code=503, content={"error": str(e)})
     clusters = cluster_points(points)
     tz_info = ZoneInfo(tz)
 
@@ -68,5 +74,8 @@ async def get_location_raw(
 ):
     from_ts, _ = _date_to_timestamps(_resolve_date(from_date))
     _, to_ts = _date_to_timestamps(_resolve_date(to_date))
-    points = await fetch_owntracks_points(from_ts, to_ts)
+    try:
+        points = await fetch_owntracks_points(from_ts, to_ts)
+    except OwnTracksNotConfiguredError as e:
+        return JSONResponse(status_code=503, content={"error": str(e)})
     return {"from_date": from_date, "to_date": to_date, "points": points}
