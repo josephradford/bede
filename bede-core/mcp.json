@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "personal-data": {
-      "type": "url",
+      "type": "http",
       "url": "http://bede-data-mcp:8002/mcp"
     }
   }
