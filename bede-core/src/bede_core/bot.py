@@ -35,9 +35,11 @@ async def _keep_typing(bot, chat_id: int, max_duration: float = TYPING_MAX_DURAT
 async def _send_response(message, text: str):
     for c in chunk_text(text):
         try:
-            await message.reply_text(md_to_html(c), parse_mode="HTML")
+            await message.reply_text(
+                md_to_html(c), parse_mode="HTML", disable_web_page_preview=True
+            )
         except Exception:
-            await message.reply_text(c)
+            await message.reply_text(c, disable_web_page_preview=True)
 
 
 def create_message_handler(

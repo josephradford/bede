@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from datetime import datetime, timezone
@@ -33,6 +34,7 @@ class TaskRunner:
         timezone: str,
         quiet_hours_start: int = 22,
         quiet_hours_end: int = 7,
+        typing_fn=None,
     ):
         self._data = data_client
         self._session = session_manager
@@ -41,6 +43,7 @@ class TaskRunner:
         self._running: set[str] = set()
         self._quiet_start = quiet_hours_start
         self._quiet_end = quiet_hours_end
+        self._typing_fn = typing_fn
 
     async def _log_start(self, task_name: str) -> int | None:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -80,6 +83,10 @@ class TaskRunner:
         start = time.monotonic()
         exec_id = await self._log_start(name)
 
+        typing_task = None
+        if self._typing_fn:
+            typing_task = asyncio.create_task(self._typing_fn())
+
         try:
             await self._run_task_inner(task)
             duration = time.monotonic() - start
@@ -90,6 +97,8 @@ class TaskRunner:
             await self._log_end(exec_id, "failure", duration, error=str(e))
             await self._send(f"⚠️ *{name}* failed: {e}")
         finally:
+            if typing_task:
+                typing_task.cancel()
             self._running.discard(name)
 
     async def _run_task_inner(self, task: dict):

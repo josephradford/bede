@@ -219,3 +219,33 @@ class TestCancelTasks:
     def test_cancel_all_empty_when_nothing_running(self, runner):
         cancelled = runner.cancel_all()
         assert cancelled == []
+
+
+class TestTypingIndicator:
+    async def test_typing_called_during_task(
+        self, data_client, session_manager, send_fn
+    ):
+        typing_fn = AsyncMock()
+        runner = TaskRunner(
+            data_client=data_client,
+            session_manager=session_manager,
+            send_fn=send_fn,
+            timezone="Australia/Sydney",
+            quiet_hours_start=0,
+            quiet_hours_end=0,
+            typing_fn=typing_fn,
+        )
+        task = {
+            "task_name": "Test Task",
+            "cron_expression": "0 8 * * *",
+            "prompt": "Do something",
+            "model": None,
+            "timeout_seconds": 300,
+            "interactive": False,
+        }
+        data_client.post.return_value = {"id": 1, "status": "running"}
+        data_client.put.return_value = {"id": 1, "status": "success"}
+
+        await runner.run_task(task)
+
+        typing_fn.assert_called()

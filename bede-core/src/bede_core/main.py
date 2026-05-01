@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import time
 from functools import partial
 
 from telegram import BotCommand, BotCommandScopeAllPrivateChats
@@ -103,6 +105,17 @@ def main():
         timezone=settings.timezone,
     )
 
+    async def keep_typing():
+        deadline = time.monotonic() + 3600
+        while time.monotonic() < deadline:
+            try:
+                await app.bot.send_chat_action(
+                    chat_id=settings.allowed_user_id, action="typing"
+                )
+            except Exception:
+                pass
+            await asyncio.sleep(4)
+
     runner = TaskRunner(
         data_client=data_client,
         session_manager=session_manager,
@@ -110,6 +123,7 @@ def main():
         timezone=settings.timezone,
         quiet_hours_start=settings.quiet_hours_start,
         quiet_hours_end=settings.quiet_hours_end,
+        typing_fn=keep_typing,
     )
 
     scheduler = setup_scheduler(data_client, runner, settings.timezone)
