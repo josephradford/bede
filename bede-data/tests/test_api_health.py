@@ -106,8 +106,31 @@ def test_get_activity(client, db):
     assert data["stand_hours"] == 10
 
 
+def test_get_activity_prefers_midnight_aggregate(client, db):
+    """When a daily aggregate exists at midnight local time, use it instead of summing."""
+    # Midnight AEST on Apr 30 = 2026-04-29T14:00:00Z
+    db.execute(
+        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
+        ("2026-04-30", "step_count", 5000, "Apple Watch", "2026-04-29T14:00:00Z"),
+    )
+    # Per-minute readings that overlap with the aggregate
+    db.execute(
+        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
+        ("2026-04-30", "step_count", 50, "Apple Watch", "2026-04-30T00:00:00Z"),
+    )
+    db.execute(
+        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
+        ("2026-04-30", "step_count", 50, "Apple Watch", "2026-04-30T01:00:00Z"),
+    )
+    db.commit()
+    response = client.get("/api/health/activity", params={"date": "2026-04-30"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["steps"] == 5000
+
+
 def test_get_activity_sums_multiple_readings(client, db):
-    """Step count should be the sum of all readings, not just the max."""
+    """Without a midnight aggregate, step count should be the sum of all readings."""
     db.execute(
         "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
         ("2026-04-30", "step_count", 100, "Apple Watch", "2026-04-30T08:00:00Z"),
