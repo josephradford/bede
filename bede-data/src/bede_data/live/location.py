@@ -1,8 +1,11 @@
+import asyncio
 import math
+import time
 
 import httpx
 
 from bede_data.config import settings
+from bede_data.db.connection import get_connection
 
 EARTH_RADIUS_M = 6_371_000
 
@@ -20,23 +23,50 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 class GeoCache:
-    """In-memory cache for reverse geocode results, keyed by coordinates rounded to `precision` decimal places. Avoids redundant Nominatim calls for nearby points."""
+    """Two-tier cache for reverse geocode results. L1 is in-memory, L2 is SQLite.
+    Keyed by coordinates rounded to `precision` decimal places (~111m at 3dp)."""
 
     def __init__(self, precision: int = 3):
-        self._cache: dict[tuple[float, float], str] = {}
+        self._mem: dict[tuple[float, float], str] = {}
         self._precision = precision
 
     def _key(self, lat: float, lon: float) -> tuple[float, float]:
         return (round(lat, self._precision), round(lon, self._precision))
 
     def get(self, lat: float, lon: float) -> str | None:
-        return self._cache.get(self._key(lat, lon))
+        key = self._key(lat, lon)
+        if key in self._mem:
+            return self._mem[key]
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT place_name FROM geocode_cache WHERE lat_round = ? AND lon_round = ?",
+                key,
+            ).fetchone()
+        finally:
+            conn.close()
+        if row:
+            self._mem[key] = row["place_name"]
+            return row["place_name"]
+        return None
 
     def put(self, lat: float, lon: float, name: str) -> None:
-        self._cache[self._key(lat, lon)] = name
+        key = self._key(lat, lon)
+        self._mem[key] = name
+        conn = get_connection()
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO geocode_cache (lat_round, lon_round, place_name) VALUES (?, ?, ?)",
+                (*key, name),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
 
 _geocache = GeoCache()
+_nominatim_lock = asyncio.Lock()
+_last_nominatim_call: float = 0.0
 
 
 def cluster_points(
@@ -136,18 +166,34 @@ async def fetch_owntracks_points(from_ts: int, to_ts: int) -> list[dict]:
 
 
 async def reverse_geocode(lat: float, lon: float) -> str:
-    """Resolve lat/lon to a place name via Nominatim, with GeoCache to deduplicate nearby lookups."""
+    """Resolve lat/lon to a place name via Nominatim, with persistent cache and 1 req/s rate limit."""
     cached = _geocache.get(lat, lon)
     if cached:
         return cached
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(
-            settings.nominatim_url,
-            params={"lat": lat, "lon": lon, "format": "json", "zoom": 18},
-            headers={"User-Agent": "bede-data/1.0"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    name = data.get("display_name", f"{lat:.4f}, {lon:.4f}")
-    _geocache.put(lat, lon, name)
-    return name
+
+    global _last_nominatim_call
+    async with _nominatim_lock:
+        cached = _geocache.get(lat, lon)
+        if cached:
+            return cached
+
+        elapsed = time.monotonic() - _last_nominatim_call
+        if elapsed < 1.0:
+            await asyncio.sleep(1.0 - elapsed)
+
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    settings.nominatim_url,
+                    params={"lat": lat, "lon": lon, "format": "json", "zoom": 18},
+                    headers={"User-Agent": "bede-data/1.0"},
+                )
+            _last_nominatim_call = time.monotonic()
+            resp.raise_for_status()
+            data = resp.json()
+        except (httpx.HTTPStatusError, httpx.RequestError):
+            return f"{lat:.4f}, {lon:.4f}"
+
+        name = data.get("display_name", f"{lat:.4f}, {lon:.4f}")
+        _geocache.put(lat, lon, name)
+        return name
