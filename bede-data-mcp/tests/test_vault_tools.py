@@ -74,7 +74,14 @@ async def test_get_youtube_history(api):
 async def test_get_podcasts(api):
     api.get.return_value = {
         "date": "2026-04-30",
-        "entries": [{"podcast": "The Daily", "episode": "Episode 1", "playhead_seconds": 0, "play_count": 1}],
+        "entries": [
+            {
+                "podcast": "The Daily",
+                "episode": "Episode 1",
+                "playhead_seconds": 0,
+                "play_count": 1,
+            }
+        ],
     }
     result = await get_podcasts("2026-04-30")
     api.get.assert_called_once_with(
