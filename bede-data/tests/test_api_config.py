@@ -106,13 +106,16 @@ class TestScheduleTaskConfig:
             ],
             "parallel": True,
         }
-        resp = client.post("/api/config/schedules", json={
-            "task_name": "Multi Step Task",
-            "cron_expression": "0 14 * * 0",
-            "prompt": "Preamble for all steps",
-            "model": "claude-sonnet-4-5-20250514",
-            "task_config": json.dumps(config),
-        })
+        resp = client.post(
+            "/api/config/schedules",
+            json={
+                "task_name": "Multi Step Task",
+                "cron_expression": "0 14 * * 0",
+                "prompt": "Preamble for all steps",
+                "model": "claude-sonnet-4-5-20250514",
+                "task_config": json.dumps(config),
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["task_name"] == "Multi Step Task"
@@ -121,23 +124,29 @@ class TestScheduleTaskConfig:
         assert parsed["parallel"] is True
 
     def test_create_schedule_without_task_config(self, client):
-        resp = client.post("/api/config/schedules", json={
-            "task_name": "Simple Task",
-            "cron_expression": "0 8 * * *",
-            "prompt": "Do the thing",
-        })
+        resp = client.post(
+            "/api/config/schedules",
+            json={
+                "task_name": "Simple Task",
+                "cron_expression": "0 8 * * *",
+                "prompt": "Do the thing",
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["task_config"] is None
 
     def test_list_schedules_includes_task_config(self, client):
         config = json.dumps({"steps": [{"name": "S1", "prompt": "P1"}]})
-        client.post("/api/config/schedules", json={
-            "task_name": "Config Task",
-            "cron_expression": "0 8 * * *",
-            "prompt": "test",
-            "task_config": config,
-        })
+        client.post(
+            "/api/config/schedules",
+            json={
+                "task_name": "Config Task",
+                "cron_expression": "0 8 * * *",
+                "prompt": "test",
+                "task_config": config,
+            },
+        )
         resp = client.get("/api/config/schedules")
         schedules = resp.json()["schedules"]
         found = [s for s in schedules if s["task_name"] == "Config Task"]

@@ -81,7 +81,13 @@ def update_schedule(
         raise HTTPException(status_code=404, detail="Schedule not found")
 
     updates: dict = {"updated_at": _now()}
-    for field in ("cron_expression", "prompt", "model", "timeout_seconds", "task_config"):
+    for field in (
+        "cron_expression",
+        "prompt",
+        "model",
+        "timeout_seconds",
+        "task_config",
+    ):
         val = getattr(body, field)
         if val is not None:
             updates[field] = val
