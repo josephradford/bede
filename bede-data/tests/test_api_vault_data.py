@@ -161,3 +161,52 @@ def test_get_bede_sessions(client, db):
     data = response.json()
     assert len(data["sessions"]) == 1
     assert data["sessions"][0]["task_name"] == "Morning Briefing"
+
+
+class TestTimezoneConversion:
+    def test_safari_timestamps_converted_to_local(self, client, db):
+        _seed_vault_data(db)
+        response = client.get(
+            "/api/vault/safari",
+            params={"date": "2026-04-29", "timezone": "Australia/Sydney"},
+        )
+        entries = response.json()["entries"]
+        assert entries[0]["visited_at"] == "2026-04-29T21:00:00"
+        assert entries[1]["visited_at"] == "2026-04-29T20:00:00"
+
+    def test_youtube_timestamps_converted_to_local(self, client, db):
+        _seed_vault_data(db)
+        response = client.get(
+            "/api/vault/youtube",
+            params={"date": "2026-04-29", "timezone": "Australia/Sydney"},
+        )
+        entries = response.json()["entries"]
+        assert entries[0]["visited_at"] == "2026-04-30T00:00:00"
+
+    def test_podcast_timestamps_converted_to_local(self, client, db):
+        _seed_vault_data(db)
+        response = client.get(
+            "/api/vault/podcasts",
+            params={"date": "2026-04-29", "timezone": "Australia/Sydney"},
+        )
+        entries = response.json()["entries"]
+        assert entries[0]["played_at"] == "2026-04-29T18:00:00"
+
+    def test_session_timestamps_not_converted(self, client, db):
+        _seed_vault_data(db)
+        response = client.get(
+            "/api/vault/claude-sessions",
+            params={"date": "2026-04-29", "timezone": "Australia/Sydney"},
+        )
+        sessions = response.json()["sessions"]
+        assert sessions[0]["start_time"] == "2026-04-29 09:00"
+        assert sessions[0]["end_time"] == "2026-04-29 10:30"
+
+    def test_different_timezone_changes_output(self, client, db):
+        _seed_vault_data(db)
+        response = client.get(
+            "/api/vault/podcasts",
+            params={"date": "2026-04-29", "timezone": "US/Eastern"},
+        )
+        entries = response.json()["entries"]
+        assert entries[0]["played_at"] == "2026-04-29T04:00:00"
