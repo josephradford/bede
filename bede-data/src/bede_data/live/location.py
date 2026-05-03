@@ -102,23 +102,37 @@ class OwnTracksNotConfiguredError(Exception):
 
 
 async def fetch_owntracks_points(from_ts: int, to_ts: int) -> list[dict]:
+    """Fetch points from OwnTracks recorder for a UTC timestamp range.
+
+    Converts timestamps to date strings for the API (which only accepts
+    YYYY-MM-DD), queries with a wide enough date window, then filters to
+    the exact timestamp range.
+    """
     if not settings.owntracks_user or not settings.owntracks_device:
         raise OwnTracksNotConfiguredError(
             "OWNTRACKS_USER and OWNTRACKS_DEVICE must be set"
         )
+    from datetime import datetime, timedelta, timezone
+
+    from_date = datetime.fromtimestamp(from_ts, tz=timezone.utc).strftime("%Y-%m-%d")
+    to_date = (
+        datetime.fromtimestamp(to_ts, tz=timezone.utc) + timedelta(days=1)
+    ).strftime("%Y-%m-%d")
+
     url = f"{settings.owntracks_url}/api/0/locations"
     params = {
         "user": settings.owntracks_user,
         "device": settings.owntracks_device,
-        "from": from_ts,
-        "to": to_ts,
+        "from": from_date,
+        "to": to_date,
     }
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(url, params=params)
         if resp.status_code == 416:
             return []
         resp.raise_for_status()
-        return resp.json().get("data", [])
+        points = resp.json().get("data", [])
+    return [p for p in points if from_ts <= p.get("tst", 0) < to_ts]
 
 
 async def reverse_geocode(lat: float, lon: float) -> str:
