@@ -86,6 +86,7 @@ class TaskRunner:
 
         typing_task = None
         if self._typing_fn:
+            log.info("Creating typing indicator task for '%s'", name)
             typing_task = asyncio.create_task(self._typing_fn())
 
         try:

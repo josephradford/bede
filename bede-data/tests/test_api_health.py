@@ -251,8 +251,8 @@ def test_get_sleep_separates_nap_from_overnight(client, db):
     assert data["sessions"][1]["total_hours"] == 1.1
     assert data["total_hours"] == 7.1
     # bedtime/wake_time should be from the primary (first) session
-    assert data["bedtime"] == "2026-04-29T13:18:00Z"
-    assert data["wake_time"] == "2026-04-29T19:18:00Z"
+    assert data["bedtime"] == "2026-04-29T23:18:00"
+    assert data["wake_time"] == "2026-04-30T05:18:00"
 
 
 def test_get_sleep_no_data(client, db):
@@ -262,3 +262,46 @@ def test_get_sleep_no_data(client, db):
     assert data["total_hours"] == 0
     assert data["phases"] == []
     assert data["sessions"] == []
+
+
+class TestTimezoneConversion:
+    def test_sleep_timestamps_converted(self, client, db):
+        _seed_health_data(db)
+        response = client.get(
+            "/api/health/sleep",
+            params={"date": "2026-04-29", "timezone": "Australia/Sydney"},
+        )
+        data = response.json()
+        assert data["bedtime"] == "2026-04-29T09:00:00"
+        assert data["wake_time"] == "2026-04-29T16:00:00"
+        assert data["phases"][0]["start_time"] == "2026-04-29T09:00:00"
+        assert data["phases"][0]["end_time"] == "2026-04-29T12:30:00"
+        assert data["sessions"][0]["bedtime"] == "2026-04-29T09:00:00"
+        assert data["sessions"][0]["wake_time"] == "2026-04-29T16:00:00"
+
+    def test_workout_timestamps_converted(self, client, db):
+        _seed_health_data(db)
+        response = client.get(
+            "/api/health/workouts",
+            params={"date": "2026-04-29", "timezone": "Australia/Sydney"},
+        )
+        data = response.json()
+        assert data["workouts"][0]["start_time"] == "2026-04-29T17:00:00"
+
+    def test_medication_timestamps_converted(self, client, db):
+        _seed_health_data(db)
+        response = client.get(
+            "/api/health/medications",
+            params={"date": "2026-04-29", "timezone": "Australia/Sydney"},
+        )
+        data = response.json()
+        assert data["medications"][0]["recorded_at"] == "2026-04-29T18:00:00"
+
+    def test_wellbeing_timestamps_converted(self, client, db):
+        _seed_health_data(db)
+        response = client.get(
+            "/api/health/wellbeing",
+            params={"date": "2026-04-29", "timezone": "Australia/Sydney"},
+        )
+        data = response.json()
+        assert data["state_of_mind"][0]["recorded_at"] == "2026-04-30T00:00:00"

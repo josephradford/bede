@@ -106,14 +106,15 @@ def main():
     )
 
     async def keep_typing():
+        log.info("Typing indicator task started")
         deadline = time.monotonic() + 3600
         while time.monotonic() < deadline:
             try:
                 await app.bot.send_chat_action(
                     chat_id=settings.allowed_user_id, action="typing"
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("send_chat_action failed: %s", e)
             await asyncio.sleep(4)
 
     runner = TaskRunner(

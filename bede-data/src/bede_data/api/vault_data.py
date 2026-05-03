@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, Query
 
 from bede_data.db.connection import get_db
+from bede_data.tz import utc_to_local
 
 router = APIRouter(prefix="/api/vault", tags=["vault"])
 
@@ -63,7 +64,10 @@ def get_safari(
         params.append(top_n)
 
     cursor = conn.execute(query, params)
-    return {"date": d, "entries": [dict(row) for row in cursor.fetchall()]}
+    entries = [dict(row) for row in cursor.fetchall()]
+    for e in entries:
+        e["visited_at"] = utc_to_local(e.get("visited_at"), timezone)
+    return {"date": d, "entries": entries}
 
 
 @router.get("/youtube")
@@ -77,7 +81,10 @@ def get_youtube(
         "SELECT title, url, visited_at FROM youtube_history WHERE date = ? ORDER BY visited_at DESC",
         (d,),
     )
-    return {"date": d, "entries": [dict(row) for row in cursor.fetchall()]}
+    entries = [dict(row) for row in cursor.fetchall()]
+    for e in entries:
+        e["visited_at"] = utc_to_local(e.get("visited_at"), timezone)
+    return {"date": d, "entries": entries}
 
 
 @router.get("/podcasts")
@@ -91,7 +98,10 @@ def get_podcasts(
         "SELECT podcast, episode, duration_seconds, played_at FROM podcasts WHERE date = ? ORDER BY played_at DESC",
         (d,),
     )
-    return {"date": d, "entries": [dict(row) for row in cursor.fetchall()]}
+    entries = [dict(row) for row in cursor.fetchall()]
+    for e in entries:
+        e["played_at"] = utc_to_local(e.get("played_at"), timezone)
+    return {"date": d, "entries": entries}
 
 
 @router.get("/claude-sessions")

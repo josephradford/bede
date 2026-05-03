@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, Query
 
 from bede_data.db.connection import get_db
+from bede_data.tz import utc_to_local
 
 SESSION_GAP_HOURS = 2
 
@@ -74,11 +75,18 @@ def get_sleep(
     bedtime = sessions[0]["bedtime"] if sessions else None
     wake_time = sessions[0]["wake_time"] if sessions else None
 
+    for p in phases:
+        p["start_time"] = utc_to_local(p.get("start_time"), timezone)
+        p["end_time"] = utc_to_local(p.get("end_time"), timezone)
+    for s in sessions:
+        s["bedtime"] = utc_to_local(s.get("bedtime"), timezone)
+        s["wake_time"] = utc_to_local(s.get("wake_time"), timezone)
+
     return {
         "date": d,
         "total_hours": total_hours,
-        "bedtime": bedtime,
-        "wake_time": wake_time,
+        "bedtime": utc_to_local(bedtime, timezone),
+        "wake_time": utc_to_local(wake_time, timezone),
         "sessions": sessions,
         "phases": phases,
     }
@@ -126,7 +134,10 @@ def get_workouts(
         "SELECT workout_type, duration_minutes, active_energy_kj, avg_heart_rate, max_heart_rate, start_time FROM workouts WHERE date = ? ORDER BY start_time",
         (d,),
     )
-    return {"date": d, "workouts": [dict(row) for row in cursor.fetchall()]}
+    workouts = [dict(row) for row in cursor.fetchall()]
+    for w in workouts:
+        w["start_time"] = utc_to_local(w.get("start_time"), timezone)
+    return {"date": d, "workouts": workouts}
 
 
 @router.get("/heart-rate")
@@ -168,6 +179,8 @@ def get_wellbeing(
         (d,),
     )
     state_of_mind = [dict(row) for row in cursor.fetchall()]
+    for s in state_of_mind:
+        s["recorded_at"] = utc_to_local(s.get("recorded_at"), timezone)
 
     return {
         "date": d,
@@ -187,4 +200,7 @@ def get_medications(
         "SELECT medication, quantity, unit, recorded_at FROM medications WHERE date = ? ORDER BY recorded_at",
         (d,),
     )
-    return {"date": d, "medications": [dict(row) for row in cursor.fetchall()]}
+    meds = [dict(row) for row in cursor.fetchall()]
+    for m in meds:
+        m["recorded_at"] = utc_to_local(m.get("recorded_at"), timezone)
+    return {"date": d, "medications": meds}
