@@ -33,6 +33,15 @@ def init_db() -> None:
                 conn.commit()
             except sqlite3.OperationalError:
                 pass
+        if existing is not None and existing < 6:
+            for col, default in [("playhead_seconds", 0), ("play_count", 0)]:
+                try:
+                    conn.execute(
+                        f"ALTER TABLE podcasts ADD COLUMN {col} INTEGER DEFAULT {default}"
+                    )
+                except sqlite3.OperationalError:
+                    pass
+            conn.commit()
         conn.commit()
         conn.executescript(SCHEMA_SQL)
         existing = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]

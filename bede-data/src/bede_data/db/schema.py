@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 # Tables whose column names changed from the prototype bede schema.
 # init_db drops these if they have old-style columns, then SCHEMA_SQL recreates them.
@@ -126,6 +126,8 @@ CREATE TABLE IF NOT EXISTS podcasts (
     podcast          TEXT NOT NULL,
     episode          TEXT NOT NULL,
     duration_seconds INTEGER,
+    playhead_seconds INTEGER DEFAULT 0,
+    play_count       INTEGER DEFAULT 0,
     played_at        TEXT NOT NULL,
     UNIQUE (episode, played_at)
 );

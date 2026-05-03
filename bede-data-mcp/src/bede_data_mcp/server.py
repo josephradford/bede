@@ -234,6 +234,10 @@ async def get_youtube_history(date: str, timezone: str = "Australia/Sydney") -> 
 async def get_podcasts(date: str, timezone: str = "Australia/Sydney") -> dict:
     """Return podcast episodes played on a given local date.
 
+    Each entry includes playhead_seconds (how far the user listened) and play_count
+    (times fully completed). An episode with play_count=0 and low playhead_seconds
+    was only briefly sampled, not meaningfully listened to.
+
     Args:
         date: Local date -- 'YYYY-MM-DD', 'today', or 'yesterday'.
         timezone: Olson timezone name.

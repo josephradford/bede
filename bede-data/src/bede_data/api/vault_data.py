@@ -95,7 +95,7 @@ def get_podcasts(
 ):
     d = _resolve_date(date)
     cursor = conn.execute(
-        "SELECT podcast, episode, duration_seconds, played_at FROM podcasts WHERE date = ? ORDER BY played_at DESC",
+        "SELECT podcast, episode, duration_seconds, playhead_seconds, play_count, played_at FROM podcasts WHERE date = ? ORDER BY played_at DESC",
         (d,),
     )
     entries = [dict(row) for row in cursor.fetchall()]

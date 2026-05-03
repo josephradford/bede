@@ -90,6 +90,8 @@ def _parse_podcasts(date: str, content: str) -> list[dict]:
             "podcast": row.get("podcast", ""),
             "episode": row.get("episode", ""),
             "duration_seconds": _parse_csv_int(row.get("duration_seconds", "0")),
+            "playhead_seconds": _parse_csv_int(row.get("playhead_seconds", "0")),
+            "play_count": _parse_csv_int(row.get("play_count", "0")),
             "played_at": row.get("played_at", ""),
         }
         for row in rows
