@@ -1,20 +1,15 @@
-IMAGE := ghcr.io/josephradford/bede
-TAG := latest
-
-.PHONY: build push test test-ingest test-mcp
-
-build:
-	docker build -t $(IMAGE):$(TAG) .
-
-push: build
-	docker push $(IMAGE):$(TAG)
+.PHONY: test test-core test-data test-data-mcp
 
 test:
-	cd data-ingest && uv run pytest tests/ -v
-	cd data-mcp && uv run pytest tests/ -v
+	cd bede-core && uv run pytest tests/ -v
+	cd bede-data && uv run pytest tests/ -v
+	cd bede-data-mcp && uv run pytest tests/ -v
 
-test-ingest:
-	cd data-ingest && uv run pytest tests/ -v
+test-core:
+	cd bede-core && uv run pytest tests/ -v
 
-test-mcp:
-	cd data-mcp && uv run pytest tests/ -v
+test-data:
+	cd bede-data && uv run pytest tests/ -v
+
+test-data-mcp:
+	cd bede-data-mcp && uv run pytest tests/ -v

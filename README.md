@@ -19,11 +19,6 @@ ALLOWED_USER_ID=your_numeric_id_here
 VAULT_REPO=           # git URL for your Obsidian vault
 VAULT_SSH_KEY_PATH=   # host path to SSH key (leave blank for HTTPS PAT)
 SESSION_TIMEOUT_MINUTES=10
-
-# Google Workspace MCP
-GOOGLE_OAUTH_CLIENT_ID=
-GOOGLE_OAUTH_CLIENT_SECRET=
-GOOGLE_OAUTH_REDIRECT_URI=http://SERVER_IP:8765/oauth2callback
 ```
 
 **2. Sync Claude OAuth credentials from Mac to server:**
@@ -48,9 +43,9 @@ make logs-bede
 ## Day-to-day Commands
 
 ```bash
-make bede-start       # Start Bede + workspace-mcp
-make bede-stop        # Stop both containers
-make bede-restart     # Restart both containers
+make bede-start       # Start Bede services
+make bede-stop        # Stop all containers
+make bede-restart     # Restart all containers
 make bede-status      # Show container status
 make logs-bede        # Tail Bede logs
 make bede-build       # Rebuild after code changes, then make bede-start
@@ -100,60 +95,24 @@ Leave `VAULT_SSH_KEY_PATH` blank.
 
 The vault is cloned on container start and pulled before each Claude invocation.
 
-## Setting Up Google Workspace MCP (Gmail, Calendar, Tasks)
-
-The `workspace-mcp` sidecar provides Bede with access to your Google Workspace via MCP tools.
-
-### 1. Create Google Cloud credentials
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project (or reuse an existing one)
-3. Enable APIs: **Gmail API**, **Google Calendar API**, **Google Tasks API**
-4. Go to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
-5. Application type: **Web application**
-6. Add authorised redirect URI: `https://mcp.YOUR_DOMAIN/oauth2callback`
-7. Copy the **Client ID** and **Client Secret** into `.env`
-
-### 2. Set env vars
-
-```env
-GOOGLE_OAUTH_CLIENT_ID=...
-GOOGLE_OAUTH_CLIENT_SECRET=...
-```
-
-The redirect URI (`https://mcp.YOUR_DOMAIN/oauth2callback`) is set automatically from `DOMAIN`.
-
-### 3. Complete the OAuth flow
-
-After starting the stack, from your browser (connected via VPN or local network):
-
-1. Visit `https://mcp.YOUR_DOMAIN` — workspace-mcp will redirect you to Google's consent screen
-2. Sign in with the Google account you want Bede to access
-3. Approve the requested permissions
-4. You'll be redirected back — tokens are saved to the `workspace-mcp-tokens` Docker volume
-
-This is a one-time step. Tokens are refreshed automatically.
-
-> **Note:** `mcp.YOUR_DOMAIN` is protected by `admin-secure-no-ratelimit` middleware — only accessible from your local network or VPN.
-
 ## Architecture
 
 ```
 docker-compose.ai.yml
-├── bede container
-│   ├── supervisord (PID 1)
-│   │   ├── bot.py          — Telegram long-polling
-│   │   └── supercronic     — scheduled briefings (Phase 3)
+├── bede-core container
+│   ├── Telegram bot + scheduler + session manager
 │   ├── claude CLI          — installed via official installer
-│   ├── /vault              — Obsidian vault (named volume, git clone on start)
+│   ├── /vault              — Obsidian vault (bind mount, git clone on start)
 │   └── ~/.claude/.credentials.json  ← bind-mounted from host
-└── workspace-mcp container
-    ├── workspace-mcp       — pip install workspace-mcp
-    ├── port 8765           — OAuth browser flow (VPN/local only)
-    └── /data               — OAuth tokens (named volume, persisted)
+├── bede-data container
+│   ├── Data ingest API (port 8001)
+│   └── SQLite database (shared via bind mount)
+└── bede-data-mcp container
+    ├── MCP server for personal data tools (port 8002)
+    └── Queries bede-data for health, location, vault data
 ```
 
-Claude Code auto-discovers workspace-mcp via `.mcp.json` in the working directory, which points to `http://workspace-mcp:8000/mcp` on the internal Docker network. Sessions are resumable because MCP is configured via the project file rather than the `--mcp-config` flag (which makes sessions unresumable in Claude Code 2.1.x).
+Claude Code auto-discovers data-mcp via `.mcp.json` in the working directory, which points to `http://bede-data-mcp:8002/mcp` on the internal Docker network. Sessions are resumable because MCP is configured via the project file rather than the `--mcp-config` flag (which makes sessions unresumable in Claude Code 2.1.x).
 
 ## Data Flow
 
@@ -161,28 +120,30 @@ Claude Code auto-discovers workspace-mcp via `.mcp.json` in the working director
 flowchart TD
     User(["Joe\n(Telegram)"])
 
-    subgraph bede["bede container"]
+    subgraph bede_core["bede-core container"]
         direction TB
-        bot["bot.py\nTelegram handler"]
-        sched["scheduler.py\nAPScheduler cron"]
+        bot["Telegram handler"]
+        sched["APScheduler cron"]
         claude["claude CLI\n(-p, --dangerously-skip-permissions)"]
         vault_clone["/vault\nObsidian git clone"]
     end
 
-    subgraph mcps["MCP Servers"]
-        data_mcp["data-mcp\npersonal-data tools"]
-        ws_mcp["workspace-mcp\nGoogle Workspace"]
+    subgraph bede_data["bede-data container"]
+        ingest["Data ingest API\nport 8001"]
+        sqlite[("SQLite DB")]
     end
 
-    subgraph services["Sidecar / Internal Services"]
-        influx["InfluxDB\nhae-influxdb:8086"]
-        google["Google APIs\nGmail · Calendar · Tasks"]
+    subgraph bede_data_mcp["bede-data-mcp container"]
+        data_mcp["MCP server\npersonal-data tools"]
+    end
+
+    subgraph services["Internal Services"]
         homepage_api["homepage-api\nweather / system"]
     end
 
-    subgraph mac["Nightly sync (Mac)"]
-        hae["Health Auto Export\nsync to InfluxDB"]
-        obsidian_sync["Obsidian vault\nnightly git push"]
+    subgraph mac["Data sync (Mac)"]
+        hae["Health Auto Export\nPOST to bede-data"]
+        obsidian_sync["Obsidian vault\ngit push every 2 min"]
     end
 
     vault_repo[("Vault repo\nGitHub")]
@@ -194,17 +155,14 @@ flowchart TD
     bot -- "claude -p\n(--resume session_id)" --> claude
 
     claude -- "MCP calls" --> data_mcp
-    claude -- "MCP calls" --> ws_mcp
     claude -- "HTTP GET" --> homepage_api
 
-    data_mcp -- "Flux queries\nsleep · activity · HR · location" --> influx
-    data_mcp -- "reads CSV files\nscreen time · Safari · podcasts · vault changes" --> vault_clone
-
-    ws_mcp -- "OAuth 2.0" --> google
+    data_mcp -- "HTTP API" --> ingest
+    ingest -- "read/write" --> sqlite
 
     vault_clone <-. "git pull" .-> vault_repo
-    obsidian_sync -. "git push nightly" .-> vault_repo
-    hae -. "HTTP POST" .-> influx
+    obsidian_sync -. "git push" .-> vault_repo
+    hae -. "HTTP POST" .-> ingest
 
     claude -- "JSON {result, session_id}" --> bot
     claude -- "JSON result" --> sched
@@ -212,10 +170,10 @@ flowchart TD
     sched -- "proactive message" --> User
 ```
 
-Two parallel data-ingestion pipelines feed into Claude's tools:
+Data flows through two paths:
 
-- **Health & location** — Health Auto Export on the Mac pushes Apple Watch/iPhone metrics to InfluxDB over HTTP. The `data-mcp` health and location tools query InfluxDB directly with Flux.
-- **Obsidian vault** — The Mac pushes a nightly git commit to the vault repo containing daily-raw CSV exports (screen time, Safari history, podcasts, Claude session summaries). The `/vault` clone inside the container is pulled before every Claude invocation, and the `data-mcp` vault tools read those CSV files directly from disk.
+- **Health & device data** — Health Auto Export on the Mac POSTs Apple Watch/iPhone metrics to the `bede-data` ingest API, which stores them in SQLite. The `data-mcp` tools query this data via the bede-data HTTP API.
+- **Obsidian vault** — The Mac pushes git commits to the vault repo containing daily-raw CSV exports (screen time, Safari history, podcasts, Claude session summaries). The `/vault` clone inside bede-core is pulled before every Claude invocation.
 
 ## Troubleshooting
 
@@ -236,29 +194,13 @@ Stale session from a previous container run. Send `/reset` on Telegram to clear 
 
 OAuth token has expired. Run the re-auth one-liner above from your Mac.
 
-### OAuth callback says "this site can't be reached"
-
-Your browser resolved `mcp.YOUR_DOMAIN` via external DNS instead of AdGuard. This happens if your machine isn't using AdGuard as its DNS server, and your public DNS has a stale or incorrect record for that subdomain (e.g. pointing to `127.0.0.1`).
-
-**Quick fix** — add a hosts entry on your Mac:
-```bash
-sudo sh -c "echo '192.168.1.SERVER_IP mcp.YOUR_DOMAIN' >> /etc/hosts"
-```
-
-**Proper fix** — either remove the public DNS record for `mcp.YOUR_DOMAIN` in Gandi (the wildcard `*.YOUR_DOMAIN` entry in AdGuard handles local resolution), or make sure your Mac uses AdGuard (`SERVER_IP`) as its DNS server.
-
-### workspace-mcp not connecting
-
-Check workspace-mcp logs: `docker compose -f docker-compose.ai.yml logs workspace-mcp`
-
-If OAuth tokens are missing or expired, repeat the OAuth browser flow (step 3 above).
-
 ## Phases
 
 | Phase | Status | Description |
 |---|---|---|
-| 1 | ✅ Done | Docker container, Telegram bot, Claude Code integration |
-| 2 | ✅ Done | Obsidian vault via git, Google Workspace MCP (Gmail, Calendar, Tasks), multi-turn sessions |
-| 3 | Planned | Scheduled briefings via supercronic cron jobs |
+| 1 | Done | Docker container, Telegram bot, Claude Code integration |
+| 2 | Done | Obsidian vault via git, multi-turn sessions |
+| 3 | Done | Scheduled tasks via APScheduler |
+| 4 | Done | Refactored into separate packages (bede-core, bede-data, bede-data-mcp) |
 
 See `docs/bede-assistant-plan.md` for the full build plan.
