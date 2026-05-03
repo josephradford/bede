@@ -81,11 +81,15 @@ async def calculate_datetime(
     else:
         try:
             parsed = datetime.fromisoformat(base)
-            base_dt = parsed.astimezone(tz) if parsed.tzinfo else parsed.replace(tzinfo=tz)
+            base_dt = (
+                parsed.astimezone(tz) if parsed.tzinfo else parsed.replace(tzinfo=tz)
+            )
         except ValueError:
             return {"error": f"Invalid base datetime: {base}"}
 
-    result = base_dt + timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+    result = base_dt + timedelta(
+        days=days, hours=hours, minutes=minutes, seconds=seconds
+    )
     return _datetime_info(result)
 
 
