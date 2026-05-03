@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query
@@ -15,17 +15,19 @@ from bede_data.live.location import (
 router = APIRouter(prefix="/api/location", tags=["location"])
 
 
-def _resolve_date(date_str: str) -> str:
+def _resolve_date(date_str: str, tz: ZoneInfo) -> str:
     if date_str == "today":
-        return date.today().isoformat()
+        return datetime.now(tz).strftime("%Y-%m-%d")
     if date_str == "yesterday":
-        return (date.today() - timedelta(days=1)).isoformat()
+        return (datetime.now(tz) - timedelta(days=1)).strftime("%Y-%m-%d")
     return date_str
 
 
-def _date_to_timestamps(date_str: str) -> tuple[int, int]:
-    d = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    return int(d.timestamp()), int((d + timedelta(days=1)).timestamp())
+def _local_day_to_utc_range(date_str: str, tz: ZoneInfo) -> tuple[int, int]:
+    """Return (from_ts, to_ts) UTC epoch seconds for a local calendar day."""
+    local_start = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=tz)
+    local_end = local_start + timedelta(days=1)
+    return int(local_start.timestamp()), int(local_end.timestamp())
 
 
 @router.get("/summary")
@@ -33,14 +35,14 @@ async def get_location_summary(
     date: str = Query(...),
     tz: str = Query("Australia/Sydney"),
 ):
-    d = _resolve_date(date)
-    from_ts, to_ts = _date_to_timestamps(d)
+    tz_info = ZoneInfo(tz)
+    d = _resolve_date(date, tz_info)
+    from_ts, to_ts = _local_day_to_utc_range(d, tz_info)
     try:
         points = await fetch_owntracks_points(from_ts, to_ts)
     except OwnTracksNotConfiguredError as e:
         return JSONResponse(status_code=503, content={"error": str(e)})
     clusters = cluster_points(points)
-    tz_info = ZoneInfo(tz)
 
     stops = []
     for c in clusters:
@@ -71,9 +73,13 @@ async def get_location_summary(
 async def get_location_raw(
     from_date: str = Query(...),
     to_date: str = Query(...),
+    tz: str = Query("Australia/Sydney"),
 ):
-    from_ts, _ = _date_to_timestamps(_resolve_date(from_date))
-    _, to_ts = _date_to_timestamps(_resolve_date(to_date))
+    tz_info = ZoneInfo(tz)
+    resolved_from = _resolve_date(from_date, tz_info)
+    resolved_to = _resolve_date(to_date, tz_info)
+    from_ts, _ = _local_day_to_utc_range(resolved_from, tz_info)
+    _, to_ts = _local_day_to_utc_range(resolved_to, tz_info)
     try:
         points = await fetch_owntracks_points(from_ts, to_ts)
     except OwnTracksNotConfiguredError as e:
