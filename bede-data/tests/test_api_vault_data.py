@@ -47,8 +47,8 @@ def _seed_vault_data(db):
         ),
     )
     db.execute(
-        "INSERT INTO podcasts (date, podcast, episode, duration_seconds, played_at) VALUES (?, ?, ?, ?, ?)",
-        ("2026-04-29", "The Daily", "Episode 123", 1800, "2026-04-29T08:00:00Z"),
+        "INSERT INTO podcasts (date, podcast, episode, duration_seconds, playhead_seconds, play_count, played_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("2026-04-29", "The Daily", "Episode 123", 1800, 0, 1, "2026-04-29T08:00:00Z"),
     )
     db.execute(
         "INSERT INTO claude_sessions (date, project, start_time, end_time, duration_min, turns, summary) VALUES (?, ?, ?, ?, ?, ?, ?)",

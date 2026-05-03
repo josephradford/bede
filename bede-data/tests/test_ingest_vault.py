@@ -71,8 +71,8 @@ def test_parse_podcasts_csv():
         "date": "2026-04-29",
         "files": {
             "podcasts.csv": (
-                "podcast,episode,duration_seconds,played_at\n"
-                "The Daily,Episode 123,1800,2026-04-29T08:00:00Z\n"
+                "podcast,episode,duration_seconds,playhead_seconds,play_count,played_at\n"
+                "The Daily,Episode 123,1800,0,1,2026-04-29T08:00:00Z\n"
             ),
         },
     }
@@ -80,6 +80,8 @@ def test_parse_podcasts_csv():
     assert len(result["podcasts"]) == 1
     assert result["podcasts"][0]["podcast"] == "The Daily"
     assert result["podcasts"][0]["duration_seconds"] == 1800
+    assert result["podcasts"][0]["playhead_seconds"] == 0
+    assert result["podcasts"][0]["play_count"] == 1
 
 
 def test_parse_claude_sessions_markdown():
