@@ -35,9 +35,11 @@ async def _keep_typing(bot, chat_id: int, max_duration: float = TYPING_MAX_DURAT
 async def _send_response(message, text: str):
     for c in chunk_text(text):
         try:
-            await message.reply_text(md_to_html(c), parse_mode="HTML")
+            await message.reply_text(
+                md_to_html(c), parse_mode="HTML", disable_web_page_preview=True
+            )
         except Exception:
-            await message.reply_text(c)
+            await message.reply_text(c, disable_web_page_preview=True)
 
 
 def create_message_handler(
@@ -45,6 +47,7 @@ def create_message_handler(
     allowed_user_id: int,
     timezone: str,
     data_client=None,
+    append_correction_fn=None,
 ):
     async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_user.id != allowed_user_id:
@@ -91,17 +94,32 @@ def create_message_handler(
                 "\n\n⚠️ _Response was truncated (output token limit reached)._"
             )
 
+        if session_manager.is_interactive and append_correction_fn:
+            await asyncio.to_thread(append_correction_fn, text)
+
         await _send_response(update.message, response_text)
 
     return handle_message
 
 
-def create_reset_handler(session_manager: SessionManager, allowed_user_id: int):
+def create_reset_handler(
+    session_manager: SessionManager, allowed_user_id: int, runner=None
+):
     async def handle_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_user.id != allowed_user_id:
             return
         await session_manager.clear_daily_session()
-        await update.message.reply_text("Session cleared. Next message starts fresh.")
+        session_manager.clear_interactive()
+        cancelled = runner.cancel_all() if runner else []
+        if cancelled:
+            names = ", ".join(cancelled)
+            await update.message.reply_text(
+                f"Session cleared. Cancelled running tasks: {names}"
+            )
+        else:
+            await update.message.reply_text(
+                "Session cleared. Next message starts fresh."
+            )
 
     return handle_reset
 

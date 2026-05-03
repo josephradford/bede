@@ -27,6 +27,12 @@ def init_db() -> None:
             existing = None
         if existing is not None and existing < 3:
             conn.execute("DROP TABLE IF EXISTS health_metrics")
+        if existing is not None and existing < 4:
+            try:
+                conn.execute("ALTER TABLE schedules ADD COLUMN task_config TEXT")
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass
         conn.commit()
         conn.executescript(SCHEMA_SQL)
         existing = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]

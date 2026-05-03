@@ -131,3 +131,93 @@ class TestResetHandler:
         await handler(update, context)
 
         session_manager.clear_daily_session.assert_not_called()
+
+
+class TestInteractiveCorrections:
+    async def test_appends_correction_during_interactive(self, session_manager):
+        from bede_core.bot import create_message_handler
+
+        session_manager.send.return_value = ClaudeResult(text="Noted!", session_id="s1")
+        session_manager.is_interactive = True
+
+        correction_calls = []
+
+        def fake_append(text):
+            correction_calls.append(text)
+
+        handler = create_message_handler(
+            session_manager,
+            allowed_user_id=12345,
+            timezone="Australia/Sydney",
+            append_correction_fn=fake_append,
+        )
+
+        update = FakeUpdate("Actually the tone was wrong", user_id=12345)
+        context = FakeContext()
+        await handler(update, context)
+
+        assert len(correction_calls) == 1
+        assert "tone was wrong" in correction_calls[0]
+
+    async def test_no_correction_when_not_interactive(self, session_manager):
+        from bede_core.bot import create_message_handler
+
+        session_manager.send.return_value = ClaudeResult(text="Hello!", session_id="s1")
+        session_manager.is_interactive = False
+
+        correction_calls = []
+
+        def fake_append(text):
+            correction_calls.append(text)
+
+        handler = create_message_handler(
+            session_manager,
+            allowed_user_id=12345,
+            timezone="Australia/Sydney",
+            append_correction_fn=fake_append,
+        )
+
+        update = FakeUpdate("Hello", user_id=12345)
+        context = FakeContext()
+        await handler(update, context)
+
+        assert len(correction_calls) == 0
+
+
+class TestResetCancellation:
+    async def test_reset_cancels_running_tasks(self, session_manager):
+        from bede_core.bot import create_reset_handler
+
+        runner = MagicMock()
+        runner.cancel_all.return_value = ["Morning Briefing", "Deal Scout"]
+
+        handler = create_reset_handler(
+            session_manager, allowed_user_id=12345, runner=runner
+        )
+
+        update = FakeUpdate("/reset", user_id=12345)
+        context = FakeContext()
+        await handler(update, context)
+
+        runner.cancel_all.assert_called_once()
+        session_manager.clear_interactive.assert_called_once()
+        reply_text = update.message.reply_text.call_args.args[0]
+        assert "Morning Briefing" in reply_text
+        assert "Deal Scout" in reply_text
+
+    async def test_reset_no_tasks_running(self, session_manager):
+        from bede_core.bot import create_reset_handler
+
+        runner = MagicMock()
+        runner.cancel_all.return_value = []
+
+        handler = create_reset_handler(
+            session_manager, allowed_user_id=12345, runner=runner
+        )
+
+        update = FakeUpdate("/reset", user_id=12345)
+        context = FakeContext()
+        await handler(update, context)
+
+        reply_text = update.message.reply_text.call_args.args[0]
+        assert "cleared" in reply_text.lower()

@@ -23,6 +23,7 @@ class ScheduleCreate(BaseModel):
     model: str | None = None
     timeout_seconds: int = 300
     interactive: bool = False
+    task_config: str | None = None
     enabled: bool = True
 
 
@@ -32,6 +33,7 @@ class ScheduleUpdate(BaseModel):
     model: str | None = None
     timeout_seconds: int | None = None
     interactive: bool | None = None
+    task_config: str | None = None
     enabled: bool | None = None
 
 
@@ -39,8 +41,8 @@ class ScheduleUpdate(BaseModel):
 def create_schedule(body: ScheduleCreate, conn: sqlite3.Connection = Depends(get_db)):
     now = _now()
     cursor = conn.execute(
-        """INSERT INTO schedules (task_name, cron_expression, prompt, model, timeout_seconds, interactive, enabled, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO schedules (task_name, cron_expression, prompt, model, timeout_seconds, interactive, task_config, enabled, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             body.task_name,
             body.cron_expression,
@@ -48,6 +50,7 @@ def create_schedule(body: ScheduleCreate, conn: sqlite3.Connection = Depends(get
             body.model,
             body.timeout_seconds,
             int(body.interactive),
+            body.task_config,
             int(body.enabled),
             now,
             now,
@@ -60,7 +63,7 @@ def create_schedule(body: ScheduleCreate, conn: sqlite3.Connection = Depends(get
 @router.get("/schedules")
 def list_schedules(conn: sqlite3.Connection = Depends(get_db)):
     cursor = conn.execute(
-        "SELECT id, task_name, cron_expression, prompt, model, timeout_seconds, interactive, enabled, created_at, updated_at FROM schedules ORDER BY task_name"
+        "SELECT id, task_name, cron_expression, prompt, model, timeout_seconds, interactive, task_config, enabled, created_at, updated_at FROM schedules ORDER BY task_name"
     )
     rows = [dict(r) for r in cursor.fetchall()]
     for r in rows:
@@ -78,7 +81,13 @@ def update_schedule(
         raise HTTPException(status_code=404, detail="Schedule not found")
 
     updates: dict = {"updated_at": _now()}
-    for field in ("cron_expression", "prompt", "model", "timeout_seconds"):
+    for field in (
+        "cron_expression",
+        "prompt",
+        "model",
+        "timeout_seconds",
+        "task_config",
+    ):
         val = getattr(body, field)
         if val is not None:
             updates[field] = val
@@ -98,7 +107,7 @@ def update_schedule(
 
 def _get_schedule(conn: sqlite3.Connection, sid: int) -> dict | None:
     cursor = conn.execute(
-        "SELECT id, task_name, cron_expression, prompt, model, timeout_seconds, interactive, enabled, created_at, updated_at FROM schedules WHERE id = ?",
+        "SELECT id, task_name, cron_expression, prompt, model, timeout_seconds, interactive, task_config, enabled, created_at, updated_at FROM schedules WHERE id = ?",
         (sid,),
     )
     row = cursor.fetchone()

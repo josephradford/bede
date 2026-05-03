@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 # Tables whose column names changed from the prototype bede schema.
 # init_db drops these if they have old-style columns, then SCHEMA_SQL recreates them.
@@ -221,6 +221,7 @@ CREATE TABLE IF NOT EXISTS schedules (
     model            TEXT,
     timeout_seconds  INTEGER DEFAULT 300,
     interactive      INTEGER NOT NULL DEFAULT 0,
+    task_config      TEXT,
     enabled          INTEGER NOT NULL DEFAULT 1,
     created_at       TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at       TEXT NOT NULL DEFAULT (datetime('now'))

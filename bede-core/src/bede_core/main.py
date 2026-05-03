@@ -1,4 +1,7 @@
+import asyncio
 import logging
+import time
+from functools import partial
 
 from telegram import BotCommand, BotCommandScopeAllPrivateChats
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
@@ -13,6 +16,7 @@ from bede_core.claude_cli import ClaudeCli
 from bede_core.config import Settings
 from bede_core.data_client import DataClient
 from bede_core.memory_manager import MemoryManager
+from bede_core.reflection import append_correction
 from bede_core.scheduler import TaskRunner, reload_schedules, setup_scheduler
 from bede_core.session_manager import SessionManager
 from bede_core.telegram_format import md_to_html, chunk_text
@@ -72,6 +76,8 @@ def main():
         timezone=settings.timezone,
         model=settings.claude_model,
         vault_path=settings.vault_path,
+        interactive_idle_timeout=settings.interactive_idle_timeout_minutes * 60,
+        interactive_max_age=settings.interactive_max_age_hours * 3600,
     )
 
     async def send_telegram(text: str):
@@ -93,6 +99,23 @@ def main():
                 except Exception as e:
                     log.error("Failed to send Telegram message: %s", e)
 
+    correction_fn = partial(
+        append_correction,
+        vault_path=settings.vault_path,
+        timezone=settings.timezone,
+    )
+
+    async def keep_typing():
+        deadline = time.monotonic() + 3600
+        while time.monotonic() < deadline:
+            try:
+                await app.bot.send_chat_action(
+                    chat_id=settings.allowed_user_id, action="typing"
+                )
+            except Exception:
+                pass
+            await asyncio.sleep(4)
+
     runner = TaskRunner(
         data_client=data_client,
         session_manager=session_manager,
@@ -100,6 +123,7 @@ def main():
         timezone=settings.timezone,
         quiet_hours_start=settings.quiet_hours_start,
         quiet_hours_end=settings.quiet_hours_end,
+        typing_fn=keep_typing,
     )
 
     scheduler = setup_scheduler(data_client, runner, settings.timezone)
@@ -141,7 +165,10 @@ def main():
     )
     app.add_handler(
         CommandHandler(
-            "reset", create_reset_handler(session_manager, settings.allowed_user_id)
+            "reset",
+            create_reset_handler(
+                session_manager, settings.allowed_user_id, runner=runner
+            ),
         )
     )
     app.add_handler(
@@ -192,6 +219,7 @@ def main():
                 settings.allowed_user_id,
                 settings.timezone,
                 data_client=data_client,
+                append_correction_fn=correction_fn,
             ),
         )
     )
