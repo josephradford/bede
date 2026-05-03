@@ -156,9 +156,7 @@ async def test_reverse_geocode_rate_limits(tmp_db, monkeypatch):
         resp = MagicMock()
         resp.status_code = 200
         resp.raise_for_status = MagicMock()
-        resp.json.return_value = {
-            "display_name": f"Place {len(call_times)}"
-        }
+        resp.json.return_value = {"display_name": f"Place {len(call_times)}"}
         return resp
 
     mock_client = AsyncMock()
