@@ -114,10 +114,14 @@ def get_activity(
     d = _resolve_date(date)
     cursor = conn.execute(
         """
-        SELECT metric, MAX(value) AS value
-        FROM health_metrics
-        WHERE date = ?
-          AND metric IN ('step_count', 'active_energy', 'apple_exercise_time', 'apple_stand_hour')
+        SELECT metric, SUM(max_val) AS value
+        FROM (
+            SELECT metric, recorded_at, MAX(value) AS max_val
+            FROM health_metrics
+            WHERE date = ?
+              AND metric IN ('step_count', 'active_energy', 'apple_exercise_time', 'apple_stand_hour')
+            GROUP BY metric, recorded_at
+        )
         GROUP BY metric
         """,
         (d,),
