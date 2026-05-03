@@ -49,6 +49,8 @@ Follow the "How Bede Uses These Goals" section in goals.md for accountability gu
 - Confirm before any write operation that wasn't explicitly requested
 - If uncertain about intent, ask one clarifying question rather than guessing
 - For scheduled briefings, include a date/time header so context is clear
+- Never guess the current date or time — call `get_current_time()` when you need it
+- Never do date arithmetic yourself — use `calculate_datetime()` for any relative date calculation ("3 days ago", "last Tuesday", "next Friday")
 - When creating markdown files, include `author: Bede` in YAML frontmatter
 - After any vault write, commit and push: `cd /vault && git add -A && git commit -m "<short description>" && git push`
 
@@ -56,6 +58,10 @@ Follow the "How Bede Uses These Goals" section in goals.md for accountability gu
 
 Use the `personal-data` MCP tools to query location, health, and vault data.
 All tools handle timezone conversion internally — pass local dates, never UTC.
+
+**Time tools:**
+- `get_current_time(timezone?)` — current date and time with day of week, week number, UTC offset. Always call this instead of guessing the date or time.
+- `calculate_datetime(days?, hours?, minutes?, seconds?, base?, timezone?)` — add or subtract time from "now" or a given datetime. Use negative values to go backwards (e.g. `days=-3` for "3 days ago"). Never do date arithmetic yourself — use this tool.
 
 **Location tools:**
 - `get_location_summary(date)` — clustered stops with place names and arrival/departure times

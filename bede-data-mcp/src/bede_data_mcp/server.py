@@ -1,10 +1,92 @@
 """bede-data-mcp: Thin MCP proxy forwarding tool calls to bede-data's HTTP API."""
 
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from fastmcp import FastMCP
 
 from bede_data_mcp import client  # noqa: F401
 
 mcp = FastMCP("personal-data")
+
+
+def _datetime_info(dt: datetime) -> dict:
+    """Build a rich context dict from a timezone-aware datetime."""
+    utc_offset = dt.strftime("%z")
+    return {
+        "datetime": dt.isoformat(),
+        "date": dt.strftime("%Y-%m-%d"),
+        "time": dt.strftime("%H:%M:%S"),
+        "day_of_week": dt.strftime("%A"),
+        "day_of_month": dt.day,
+        "month": dt.month,
+        "year": dt.year,
+        "week_number": dt.isocalendar()[1],
+        "utc_offset": f"{utc_offset[:3]}:{utc_offset[3:]}",
+        "timezone": str(dt.tzinfo),
+        "unix_timestamp": int(dt.timestamp()),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Time tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def get_current_time(timezone: str = "Australia/Sydney") -> dict:
+    """Return the current date and time with rich context.
+
+    Includes day of week, week number, UTC offset, and more. Use this as the
+    reliable source of "now" rather than guessing the date.
+
+    Args:
+        timezone: Olson timezone name (e.g. 'Australia/Sydney', 'UTC').
+    """
+    try:
+        tz = ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, KeyError):
+        return {"error": f"Unknown timezone: {timezone}"}
+    return _datetime_info(datetime.now(tz))
+
+
+@mcp.tool()
+async def calculate_datetime(
+    days: int = 0,
+    hours: int = 0,
+    minutes: int = 0,
+    seconds: int = 0,
+    base: str = "now",
+    timezone: str = "Australia/Sydney",
+) -> dict:
+    """Add or subtract time from a base datetime and return the result.
+
+    Use negative values to go backwards (e.g. days=-3 for "3 days ago").
+
+    Args:
+        days: Days to add (negative to subtract).
+        hours: Hours to add (negative to subtract).
+        minutes: Minutes to add (negative to subtract).
+        seconds: Seconds to add (negative to subtract).
+        base: Starting datetime -- 'now' or an ISO 8601 string (e.g. '2026-05-03T10:00:00').
+        timezone: Olson timezone name. Used to resolve 'now' and for the output.
+    """
+    try:
+        tz = ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, KeyError):
+        return {"error": f"Unknown timezone: {timezone}"}
+
+    if base == "now":
+        base_dt = datetime.now(tz)
+    else:
+        try:
+            parsed = datetime.fromisoformat(base)
+            base_dt = parsed.astimezone(tz) if parsed.tzinfo else parsed.replace(tzinfo=tz)
+        except ValueError:
+            return {"error": f"Invalid base datetime: {base}"}
+
+    result = base_dt + timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+    return _datetime_info(result)
 
 
 # ---------------------------------------------------------------------------
