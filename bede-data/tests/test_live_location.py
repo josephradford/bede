@@ -1,5 +1,5 @@
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -150,7 +150,6 @@ async def test_reverse_geocode_rate_limits(tmp_db, monkeypatch):
     monkeypatch.setattr(loc, "_last_nominatim_call", 0.0)
 
     call_times: list[float] = []
-    original_get = None
 
     async def tracking_get(*args, **kwargs):
         call_times.append(time.monotonic())
