@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 # Tables whose column names changed from the prototype bede schema.
 # init_db drops these if they have old-style columns, then SCHEMA_SQL recreates them.
@@ -289,5 +289,13 @@ CREATE TABLE IF NOT EXISTS retention_policies (
     data_type      TEXT PRIMARY KEY,
     retention_days INTEGER NOT NULL,
     updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS geocode_cache (
+    lat_round   REAL NOT NULL,
+    lon_round   REAL NOT NULL,
+    place_name  TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (lat_round, lon_round)
 );
 """
