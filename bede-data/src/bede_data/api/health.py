@@ -48,10 +48,22 @@ def _group_into_sessions(phases: list[dict]) -> list[list[dict]]:
     return sessions
 
 
+_SLEEP_STAGES = frozenset(("core", "deep", "rem"))
+
+
+def _sleep_hours(phases: list[dict]) -> float:
+    stage_phases = [p for p in phases if p["phase"] in _SLEEP_STAGES]
+    if stage_phases:
+        return sum(p["hours"] for p in stage_phases)
+    asleep_phases = [p for p in phases if p["phase"] == "asleep"]
+    if asleep_phases:
+        return sum(p["hours"] for p in asleep_phases)
+    return sum(p["hours"] for p in phases)
+
+
 def _build_session(phases: list[dict]) -> dict:
-    total_hours = round(sum(p["hours"] for p in phases), 2)
     return {
-        "total_hours": total_hours,
+        "total_hours": round(_sleep_hours(phases), 2),
         "bedtime": phases[0]["start_time"],
         "wake_time": phases[-1]["end_time"],
         "phases": phases,

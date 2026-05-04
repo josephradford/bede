@@ -380,6 +380,64 @@ def test_get_sleep_separates_nap_from_overnight(client, db):
     assert data["wake_time"] == "2026-04-30T05:18:00"
 
 
+def test_get_sleep_excludes_overlapping_phases_from_total(client, db):
+    """When HAE sends all six aggregated fields, total should only count
+    core+deep+rem — not awake, asleep, or inBed which overlap."""
+    for phase, hours in [
+        ("core", 3.5),
+        ("deep", 0.8),
+        ("rem", 2.0),
+        ("awake", 1.05),
+        ("asleep", 6.3),
+        ("inBed", 7.35),
+    ]:
+        db.execute(
+            "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                "2026-05-01",
+                phase,
+                hours,
+                "2026-04-30T13:00:00Z",
+                "2026-04-30T20:21:00Z",
+                "Apple Watch",
+            ),
+        )
+    db.commit()
+
+    response = client.get("/api/health/sleep", params={"date": "2026-05-01"})
+    assert response.status_code == 200
+    data = response.json()
+    # Only core + deep + rem = 6.3, NOT 20.0 (all six summed)
+    assert data["total_hours"] == 6.3
+    assert data["sessions"][0]["total_hours"] == 6.3
+
+
+def test_get_sleep_uses_asleep_when_no_stage_breakdown(client, db):
+    """When only asleep/awake/inBed are present (no core/deep/rem), use asleep."""
+    for phase, hours in [
+        ("asleep", 1.5),
+        ("awake", 0.2),
+        ("inBed", 1.7),
+    ]:
+        db.execute(
+            "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                "2026-05-01",
+                phase,
+                hours,
+                "2026-05-01T03:00:00Z",
+                "2026-05-01T04:42:00Z",
+                "Apple Watch",
+            ),
+        )
+    db.commit()
+
+    response = client.get("/api/health/sleep", params={"date": "2026-05-01"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_hours"] == 1.5
+
+
 def test_get_sleep_no_data(client, db):
     response = client.get("/api/health/sleep", params={"date": "2026-04-29"})
     assert response.status_code == 200
