@@ -3,7 +3,9 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 
-def _today_str(reference_date: str | None = None, tz_name: str = "Australia/Sydney") -> str:
+def _today_str(
+    reference_date: str | None = None, tz_name: str = "Australia/Sydney"
+) -> str:
     return reference_date or datetime.now(ZoneInfo(tz_name)).strftime("%Y-%m-%d")
 
 
