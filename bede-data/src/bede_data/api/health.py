@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
@@ -13,11 +13,12 @@ _AGGREGATED_PHASES = ("core", "deep", "rem", "awake", "asleep", "inBed")
 router = APIRouter(prefix="/api/health", tags=["health"])
 
 
-def _resolve_date(date_str: str) -> str:
+def _resolve_date(date_str: str, tz_name: str = "Australia/Sydney") -> str:
+    tz = ZoneInfo(tz_name)
     if date_str == "today":
-        return date.today().isoformat()
+        return datetime.now(tz).strftime("%Y-%m-%d")
     if date_str == "yesterday":
-        return (date.today() - timedelta(days=1)).isoformat()
+        return (datetime.now(tz) - timedelta(days=1)).strftime("%Y-%m-%d")
     return date_str
 
 
@@ -76,7 +77,7 @@ def get_sleep(
     timezone: str = Query("Australia/Sydney"),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    d = _resolve_date(date)
+    d = _resolve_date(date, timezone)
     placeholders = ",".join("?" for _ in _AGGREGATED_PHASES)
     cursor = conn.execute(
         f"SELECT phase, hours, start_time, end_time, source FROM sleep_phases WHERE date = ? AND phase IN ({placeholders}) ORDER BY start_time",
@@ -177,7 +178,7 @@ def get_activity(
     timezone: str = Query("Australia/Sydney"),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    d = _resolve_date(date)
+    d = _resolve_date(date, timezone)
     metrics = _aggregate_activity(d, timezone, conn)
     return {
         "date": d,
@@ -194,7 +195,7 @@ def get_workouts(
     timezone: str = Query("Australia/Sydney"),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    d = _resolve_date(date)
+    d = _resolve_date(date, timezone)
     cursor = conn.execute(
         "SELECT workout_type, duration_minutes, active_energy_kj, avg_heart_rate, max_heart_rate, start_time FROM workouts WHERE date = ? ORDER BY start_time",
         (d,),
@@ -211,7 +212,7 @@ def get_heart_rate(
     timezone: str = Query("Australia/Sydney"),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    d = _resolve_date(date)
+    d = _resolve_date(date, timezone)
     cursor = conn.execute(
         "SELECT metric, value FROM health_metrics WHERE date = ? AND metric IN ('resting_heart_rate', 'heart_rate_variability')",
         (d,),
@@ -230,7 +231,7 @@ def get_wellbeing(
     timezone: str = Query("Australia/Sydney"),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    d = _resolve_date(date)
+    d = _resolve_date(date, timezone)
 
     cursor = conn.execute(
         "SELECT value FROM health_metrics WHERE date = ? AND metric = 'mindful_minutes'",
@@ -260,7 +261,7 @@ def get_medications(
     timezone: str = Query("Australia/Sydney"),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    d = _resolve_date(date)
+    d = _resolve_date(date, timezone)
     cursor = conn.execute(
         "SELECT medication, quantity, unit, recorded_at FROM medications WHERE date = ? ORDER BY recorded_at",
         (d,),

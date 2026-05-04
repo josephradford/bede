@@ -1,5 +1,6 @@
 import sqlite3
-from datetime import date, timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 
@@ -9,11 +10,12 @@ from bede_data.tz import utc_to_local
 router = APIRouter(prefix="/api/vault", tags=["vault"])
 
 
-def _resolve_date(date_str: str) -> str:
+def _resolve_date(date_str: str, tz_name: str = "Australia/Sydney") -> str:
+    tz = ZoneInfo(tz_name)
     if date_str == "today":
-        return date.today().isoformat()
+        return datetime.now(tz).strftime("%Y-%m-%d")
     if date_str == "yesterday":
-        return (date.today() - timedelta(days=1)).isoformat()
+        return (datetime.now(tz) - timedelta(days=1)).strftime("%Y-%m-%d")
     return date_str
 
 
@@ -25,7 +27,7 @@ def get_screen_time(
     timezone: str = Query("Australia/Sydney"),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    d = _resolve_date(date)
+    d = _resolve_date(date, timezone)
     query = "SELECT device, entry_type, name, seconds FROM screen_time WHERE date = ?"
     params: list = [d]
     if device:
@@ -49,7 +51,7 @@ def get_safari(
     timezone: str = Query("Australia/Sydney"),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    d = _resolve_date(date)
+    d = _resolve_date(date, timezone)
     query = "SELECT device, domain, title, url, visited_at FROM safari_history WHERE date = ?"
     params: list = [d]
     if device:
@@ -76,7 +78,7 @@ def get_youtube(
     timezone: str = Query("Australia/Sydney"),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    d = _resolve_date(date)
+    d = _resolve_date(date, timezone)
     cursor = conn.execute(
         "SELECT title, url, visited_at FROM youtube_history WHERE date = ? ORDER BY visited_at DESC",
         (d,),
@@ -93,7 +95,7 @@ def get_podcasts(
     timezone: str = Query("Australia/Sydney"),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    d = _resolve_date(date)
+    d = _resolve_date(date, timezone)
     cursor = conn.execute(
         "SELECT podcast, episode, duration_seconds, playhead_seconds, play_count, played_at FROM podcasts WHERE date = ? ORDER BY played_at DESC",
         (d,),
@@ -110,7 +112,7 @@ def get_claude_sessions(
     timezone: str = Query("Australia/Sydney"),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    d = _resolve_date(date)
+    d = _resolve_date(date, timezone)
     cursor = conn.execute(
         "SELECT project, start_time, end_time, duration_min, turns, summary FROM claude_sessions WHERE date = ? ORDER BY start_time",
         (d,),
@@ -124,7 +126,7 @@ def get_bede_sessions(
     timezone: str = Query("Australia/Sydney"),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    d = _resolve_date(date)
+    d = _resolve_date(date, timezone)
     cursor = conn.execute(
         "SELECT task_name, start_time, end_time, duration_min, turns, summary FROM bede_sessions WHERE date = ? ORDER BY start_time",
         (d,),

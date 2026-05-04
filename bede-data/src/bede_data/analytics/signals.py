@@ -1,9 +1,10 @@
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 
-def _today_str(reference_date: str | None = None) -> str:
-    return reference_date or date.today().isoformat()
+def _today_str(reference_date: str | None = None, tz_name: str = "Australia/Sydney") -> str:
+    return reference_date or datetime.now(ZoneInfo(tz_name)).strftime("%Y-%m-%d")
 
 
 def _date_range(reference: str, window_days: int) -> tuple[str, str]:
