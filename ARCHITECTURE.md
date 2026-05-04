@@ -151,7 +151,7 @@ flowchart TD
     session -- "context + prompt" --> cli
     memory -- "memories, scratchpad" --> session
     session -- "git pull" --> vault
-    vault -- "scheduled-tasks.md" --> sched
+    sched -- "loads from\n/api/config/schedules" --> api
     sched -- "task prompt" --> session
 
     cli -- "claude -p --resume" --> Claude["Claude API"]
@@ -184,7 +184,7 @@ The brain. Handles Telegram interaction, Claude CLI invocation, session continui
 | Component | Purpose |
 |-----------|---------|
 | `bot.py` | Telegram long-polling handler, `/start`, `/reset`, message routing |
-| `scheduler.py` | APScheduler cron — loads task definitions from vault, fires prompts |
+| `scheduler.py` | APScheduler cron — loads task definitions from DB via bede-data API, fires prompts |
 | `session_manager.py` | Daily session continuity via bede-data, scratchpad, vault pull |
 | `claude_cli.py` | Subprocess wrapper for `claude -p --resume --output-format json` |
 | `memory_manager.py` | Injects active memories and scratchpad context into prompts |
@@ -285,7 +285,7 @@ All persistent data lives in `./data/bede/` on the home server host, bind-mounte
 
 **SQLite is the single source of truth** for all structured data. Health metrics, vault exports, memories, goals, conversation history, scheduled task config, and analytics flags all live in `bede.db`. Schema migrations are applied on startup via `bede_data.db.schema`.
 
-The Obsidian vault is a git clone pulled before each Claude invocation. Bede reads scheduled task definitions from `Bede/scheduled-tasks.md` in the vault. The vault publish queue (via `/api/vault-queue`) stages content for writing back to the vault.
+The Obsidian vault is a git clone pulled before each Claude invocation. Bede reads vault files during task execution for context (persona, preferences, journal entries). Scheduled task definitions are stored in the `schedules` SQLite table and managed via `/api/config/schedules`. The vault publish queue (via `/api/vault-queue`) stages content for writing back to the vault.
 
 ---
 
