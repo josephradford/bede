@@ -124,9 +124,10 @@ def _midnight_utc(local_date: str, tz_name: str) -> str:
 def _aggregate_activity(
     d: str, tz_name: str, conn: sqlite3.Connection
 ) -> dict[str, float]:
-    """Return activity metrics for a date. Prefer HAE's daily aggregate
-    (the entry at midnight local time) when available; fall back to
-    SUM(MAX per timestamp) for metrics without an aggregate."""
+    """Return activity metrics for a date. Takes the larger of HAE's
+    midnight aggregate and the SUM of non-midnight per-minute readings.
+    The aggregate is authoritative for past days but stale for the
+    current day; the SUM overcounts slightly but stays fresh."""
     midnight = _midnight_utc(d, tz_name)
     placeholders = ",".join("?" for _ in _ACTIVITY_METRICS)
 
@@ -135,26 +136,29 @@ def _aggregate_activity(
         f"WHERE date = ? AND recorded_at = ? AND metric IN ({placeholders})",
         (d, midnight, *_ACTIVITY_METRICS),
     )
-    metrics = {row["metric"]: row["value"] for row in agg_cursor.fetchall()}
+    aggregates = {row["metric"]: row["value"] for row in agg_cursor.fetchall()}
 
-    missing = [m for m in _ACTIVITY_METRICS if m not in metrics]
-    if missing:
-        mp = ",".join("?" for _ in missing)
-        fallback = conn.execute(
-            f"""
-            SELECT metric, SUM(max_val) AS value
-            FROM (
-                SELECT metric, recorded_at, MAX(value) AS max_val
-                FROM health_metrics
-                WHERE date = ? AND metric IN ({mp})
-                GROUP BY metric, recorded_at
-            )
-            GROUP BY metric
-            """,
-            (d, *missing),
+    sum_cursor = conn.execute(
+        f"""
+        SELECT metric, SUM(max_val) AS value
+        FROM (
+            SELECT metric, recorded_at, MAX(value) AS max_val
+            FROM health_metrics
+            WHERE date = ? AND (recorded_at IS NULL OR recorded_at != ?) AND metric IN ({placeholders})
+            GROUP BY metric, recorded_at
         )
-        for row in fallback.fetchall():
-            metrics[row["metric"]] = row["value"]
+        GROUP BY metric
+        """,
+        (d, midnight, *_ACTIVITY_METRICS),
+    )
+    sums = {row["metric"]: row["value"] for row in sum_cursor.fetchall()}
+
+    metrics: dict[str, float] = {}
+    for m in _ACTIVITY_METRICS:
+        agg = aggregates.get(m, 0)
+        s = sums.get(m, 0)
+        if agg or s:
+            metrics[m] = max(agg, s)
 
     return metrics
 
