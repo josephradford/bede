@@ -4,6 +4,18 @@ from datetime import datetime, timezone
 
 _MEDICATION_RE = re.compile(r"medication", re.IGNORECASE)
 
+# Cumulative metrics where qty = total count and Avg = replicated rate.
+# For these, prefer qty. For rate metrics (heart_rate etc.), prefer Avg.
+_CUMULATIVE_METRICS = frozenset(
+    {
+        "step_count",
+        "active_energy",
+        "apple_exercise_time",
+        "apple_stand_hour",
+        "mindful_minutes",
+    }
+)
+
 _TS_PATTERNS = [
     r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) ([+-]\d{4})",
     r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})([+-]\d{2}:\d{2})",
@@ -259,8 +271,13 @@ def parse_health_payload(payload: dict) -> dict:
             for entry in metric.get("data", []):
                 date = _parse_date(entry.get("date", ""))
                 source = entry.get("source", "")
-                avg = entry.get("Avg")
-                qty = avg if avg is not None else entry.get("qty")
+                if name in _CUMULATIVE_METRICS:
+                    qty = entry.get("qty")
+                    if qty is None:
+                        qty = entry.get("Avg")
+                else:
+                    avg = entry.get("Avg")
+                    qty = avg if avg is not None else entry.get("qty")
                 if qty is None:
                     continue
                 try:
