@@ -2,9 +2,11 @@ import sqlite3
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from bede_data.config import settings
+
 
 def _today_str(
-    reference_date: str | None = None, tz_name: str = "Australia/Sydney"
+    reference_date: str | None = None, tz_name: str = settings.timezone
 ) -> str:
     return reference_date or datetime.now(ZoneInfo(tz_name)).strftime("%Y-%m-%d")
 

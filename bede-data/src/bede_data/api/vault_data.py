@@ -4,13 +4,14 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 
+from bede_data.config import settings
 from bede_data.db.connection import get_db
 from bede_data.tz import utc_to_local
 
 router = APIRouter(prefix="/api/vault", tags=["vault"])
 
 
-def _resolve_date(date_str: str, tz_name: str = "Australia/Sydney") -> str:
+def _resolve_date(date_str: str, tz_name: str = settings.timezone) -> str:
     tz = ZoneInfo(tz_name)
     if date_str == "today":
         return datetime.now(tz).strftime("%Y-%m-%d")
