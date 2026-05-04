@@ -378,8 +378,8 @@ def test_parse_metric_avg_fallback():
     assert result["health_metrics"][0]["source"] == "Apple Watch"
 
 
-def test_parse_metric_avg_preferred_over_qty():
-    """When both Avg and qty are present, Avg should win (qty may be 0 in summarised mode)."""
+def test_parse_metric_avg_preferred_over_qty_for_rates():
+    """For rate metrics (heart_rate), Avg wins over qty (qty may be 0 in summarised mode)."""
     payload = {
         "data": {
             "metrics": [
@@ -403,6 +403,31 @@ def test_parse_metric_avg_preferred_over_qty():
     result = parse_health_payload(payload)
     assert len(result["health_metrics"]) == 1
     assert result["health_metrics"][0]["value"] == 72
+
+
+def test_parse_cumulative_metric_uses_qty_over_avg():
+    """For cumulative metrics (step_count), qty wins over Avg to avoid overcounting."""
+    payload = {
+        "data": {
+            "metrics": [
+                {
+                    "name": "step_count",
+                    "units": "count",
+                    "data": [
+                        {
+                            "date": "2026-04-29 08:30:00 +1000",
+                            "qty": 150,
+                            "Avg": 9.554,
+                            "source": "Apple Watch",
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert len(result["health_metrics"]) == 1
+    assert result["health_metrics"][0]["value"] == 150
 
 
 def test_parse_sleep_unsummarised_phase_records():
