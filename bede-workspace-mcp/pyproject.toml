@@ -1,0 +1,12 @@
+[project]
+name = "bede-workspace-mcp"
+version = "0.1.0"
+description = "Docker wrapper for workspace-mcp — Google Workspace MCP sidecar for Bede"
+requires-python = ">=3.12"
+dependencies = [
+    "workspace-mcp[disk]>=1.20.0,<2.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
