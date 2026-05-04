@@ -150,7 +150,7 @@ flowchart TD
 
     User -- "text message" --> bot
     bot -- "git pull\nbefore each call" --> vault_clone
-    vault_clone -- "scheduled-tasks.md\n(reload every 5 min)" --> sched
+    sched -- "loads from\n/api/config/schedules" --> ingest
     sched -- "claude -p\n(on cron)" --> claude
     bot -- "claude -p\n(--resume session_id)" --> claude
 
