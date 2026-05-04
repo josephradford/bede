@@ -274,9 +274,10 @@ async def get_bede_sessions(date: str, timezone: str = "Australia/Sydney") -> di
 
 @mcp.tool()
 async def get_location_summary(date: str, timezone: str = "Australia/Sydney") -> dict:
-    """Return summarised stops for a given local date with place names and arrival/departure times.
+    """Return where Joe was during a given day as a list of named stops with local arrival/departure times.
 
-    Clusters GPS points into named locations via reverse geocoding.
+    This is the primary location tool. It clusters GPS points, reverse geocodes coordinates into
+    place names, and converts all timestamps to the requested timezone.
 
     Args:
         date: Local date -- 'YYYY-MM-DD', 'today', or 'yesterday'.
@@ -287,7 +288,10 @@ async def get_location_summary(date: str, timezone: str = "Australia/Sydney") ->
 
 @mcp.tool()
 async def get_location_raw(from_date: str, to_date: str) -> dict:
-    """Return raw GPS points for a local date range without summarisation.
+    """Return raw OwnTracks GPS points for debugging or custom analysis.
+
+    Prefer get_location_summary for normal use — it returns named stops with local times.
+    This tool returns unsummarised points with UTC epoch timestamps and bare lat/lon coordinates.
 
     Args:
         from_date: Start local date ('YYYY-MM-DD').
