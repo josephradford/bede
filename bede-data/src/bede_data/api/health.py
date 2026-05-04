@@ -106,7 +106,12 @@ def get_sleep(
     }
 
 
-_ACTIVITY_METRICS = ("step_count", "active_energy", "apple_exercise_time", "apple_stand_hour")
+_ACTIVITY_METRICS = (
+    "step_count",
+    "active_energy",
+    "apple_exercise_time",
+    "apple_stand_hour",
+)
 
 
 def _midnight_utc(local_date: str, tz_name: str) -> str:
