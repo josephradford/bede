@@ -106,8 +106,8 @@ def test_get_activity(client, db):
     assert data["stand_hours"] == 10
 
 
-def test_get_activity_uses_aggregate_when_larger(client, db):
-    """Completed day: midnight aggregate > per-minute SUM, so use aggregate."""
+def test_get_activity_prefers_aggregate_over_sum(client, db):
+    """Midnight aggregate is authoritative — per-minute readings are ignored."""
     # Midnight AEST on Apr 30 = 2026-04-29T14:00:00Z
     db.execute(
         "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
@@ -126,29 +126,6 @@ def test_get_activity_uses_aggregate_when_larger(client, db):
     assert response.status_code == 200
     data = response.json()
     assert data["steps"] == 5000
-
-
-def test_get_activity_uses_sum_when_aggregate_stale(client, db):
-    """Current day: stale midnight aggregate < per-minute SUM, so use SUM."""
-    # Stale aggregate from early morning
-    db.execute(
-        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
-        ("2026-04-30", "step_count", 200, "Apple Watch", "2026-04-29T14:00:00Z"),
-    )
-    # Per-minute readings accumulated throughout the day
-    db.execute(
-        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
-        ("2026-04-30", "step_count", 500, "Apple Watch", "2026-04-30T00:00:00Z"),
-    )
-    db.execute(
-        "INSERT INTO health_metrics (date, metric, value, source, recorded_at) VALUES (?, ?, ?, ?, ?)",
-        ("2026-04-30", "step_count", 800, "Apple Watch", "2026-04-30T03:00:00Z"),
-    )
-    db.commit()
-    response = client.get("/api/health/activity", params={"date": "2026-04-30"})
-    assert response.status_code == 200
-    data = response.json()
-    assert data["steps"] == 1300
 
 
 def test_get_activity_sums_when_no_aggregate(client, db):
