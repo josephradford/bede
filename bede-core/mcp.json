@@ -4,7 +4,7 @@
       "type": "http",
       "url": "http://bede-data-mcp:8002/mcp"
     },
-    "workspace": {
+    "google-workspace": {
       "type": "http",
       "url": "http://bede-workspace-mcp:8003/mcp"
     }
