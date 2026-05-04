@@ -430,6 +430,29 @@ def test_parse_cumulative_metric_uses_qty_over_avg():
     assert result["health_metrics"][0]["value"] == 150
 
 
+def test_parse_cumulative_metric_skips_avg_only():
+    """Cumulative metrics without qty are skipped entirely (Avg is not a valid fallback)."""
+    payload = {
+        "data": {
+            "metrics": [
+                {
+                    "name": "step_count",
+                    "units": "count",
+                    "data": [
+                        {
+                            "date": "2026-04-29 08:30:00 +1000",
+                            "Avg": 9.554,
+                            "source": "Apple Watch",
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert result["health_metrics"] == []
+
+
 def test_parse_sleep_unsummarised_phase_records():
     """Unsummarised sleep: data[] entries that ARE phase records with value/qty."""
     payload = {

@@ -273,8 +273,6 @@ def parse_health_payload(payload: dict) -> dict:
                 source = entry.get("source", "")
                 if name in _CUMULATIVE_METRICS:
                     qty = entry.get("qty")
-                    if qty is None:
-                        qty = entry.get("Avg")
                 else:
                     avg = entry.get("Avg")
                     qty = avg if avg is not None else entry.get("qty")
