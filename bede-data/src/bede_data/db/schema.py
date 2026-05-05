@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 # Tables whose column names changed from the prototype bede schema.
 # init_db drops these if they have old-style columns, then SCHEMA_SQL recreates them.
@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS medications (
     quantity    REAL,
     unit        TEXT,
     recorded_at TEXT,
+    status      TEXT,
     UNIQUE (date, medication, recorded_at)
 );
 

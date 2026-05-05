@@ -42,6 +42,12 @@ def init_db() -> None:
                 except sqlite3.OperationalError:
                     pass
             conn.commit()
+        if existing is not None and existing < 7:
+            try:
+                conn.execute("ALTER TABLE medications ADD COLUMN status TEXT")
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass
         conn.commit()
         conn.executescript(SCHEMA_SQL)
         existing = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]

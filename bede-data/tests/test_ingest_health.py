@@ -244,6 +244,63 @@ def test_parse_medications_regex():
     assert result["medications"][0]["unit"] == "tablet"
 
 
+def test_parse_hae_medications():
+    """HAE sends medications as a top-level array in data with displayText/dosage/form/status."""
+    payload = {
+        "data": {
+            "medications": [
+                {
+                    "displayText": "Aspirin",
+                    "nickname": "Daily Aspirin",
+                    "start": "2026-01-01 08:00:00 +1100",
+                    "end": None,
+                    "scheduledDate": "2026-04-29 08:00:00 +1000",
+                    "form": "Tablet",
+                    "status": "Taken",
+                    "isArchived": False,
+                    "dosage": 81,
+                },
+                {
+                    "displayText": "Old Med",
+                    "scheduledDate": "2026-04-29 09:00:00 +1000",
+                    "form": "Capsule",
+                    "status": "Taken",
+                    "isArchived": True,
+                    "dosage": 1,
+                },
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert len(result["medications"]) == 1
+    assert result["medications"][0]["medication"] == "Aspirin"
+    assert result["medications"][0]["quantity"] == 81
+    assert result["medications"][0]["unit"] == "Tablet"
+    assert result["medications"][0]["status"] == "Taken"
+    assert result["medications"][0]["date"] == "2026-04-29"
+
+
+def test_parse_hae_medications_skipped():
+    """Skipped medications are still stored so Bede can report on adherence."""
+    payload = {
+        "data": {
+            "medications": [
+                {
+                    "displayText": "Vitamin D",
+                    "scheduledDate": "2026-04-29 08:00:00 +1000",
+                    "form": "Tablet",
+                    "status": "Skipped",
+                    "isArchived": False,
+                    "dosage": 1,
+                },
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert len(result["medications"]) == 1
+    assert result["medications"][0]["status"] == "Skipped"
+
+
 def test_parse_state_of_mind_top_level():
     """stateOfMind is a top-level array in data, not inside metrics."""
     payload = {
@@ -268,6 +325,25 @@ def test_parse_state_of_mind_top_level():
 
     assert json.loads(result["state_of_mind"][0]["labels"]) == ["Happy", "Calm"]
     assert json.loads(result["state_of_mind"][0]["associations"]) == ["Work"]
+
+
+def test_parse_state_of_mind_top_level_payload():
+    """HAE may send stateOfMind at the payload root, not inside data."""
+    payload = {
+        "stateOfMind": [
+            {
+                "start": "2026-05-05 10:00:00 +1000",
+                "kind": "mood",
+                "valence": -0.3,
+                "labels": ["Anxious"],
+                "associations": ["Health"],
+            }
+        ]
+    }
+    result = parse_health_payload(payload)
+    assert len(result["state_of_mind"]) == 1
+    assert result["state_of_mind"][0]["valence"] == -0.3
+    assert result["state_of_mind"][0]["date"] == "2026-05-05"
 
 
 def test_parse_skips_metrics_with_no_qty():

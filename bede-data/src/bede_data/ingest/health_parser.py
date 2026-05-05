@@ -294,7 +294,7 @@ def parse_health_payload(payload: dict) -> dict:
                     }
                 )
 
-    for workout in data.get("workouts", []):
+    for workout in data.get("workouts", []) or payload.get("workouts", []):
         start_str = workout.get("start", "")
         end_str = workout.get("end", "")
         duration = _hours_between(start_str, end_str) * 60
@@ -312,6 +312,26 @@ def parse_health_payload(payload: dict) -> dict:
             }
         )
 
-    result["state_of_mind"].extend(_process_state_of_mind(data.get("stateOfMind", [])))
+    result["state_of_mind"].extend(
+        _process_state_of_mind(
+            data.get("stateOfMind", []) or payload.get("stateOfMind", [])
+        )
+    )
+
+    for med in data.get("medications", []) or payload.get("medications", []):
+        if med.get("isArchived"):
+            continue
+        ts = med.get("scheduledDate", "") or med.get("start", "")
+        date = _parse_date(ts)
+        result["medications"].append(
+            {
+                "date": date,
+                "medication": med.get("displayText", ""),
+                "quantity": med.get("dosage"),
+                "unit": med.get("form"),
+                "recorded_at": _parse_datetime(ts),
+                "status": med.get("status"),
+            }
+        )
 
     return result
