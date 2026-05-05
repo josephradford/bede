@@ -50,22 +50,13 @@ def _group_into_sessions(phases: list[dict]) -> list[list[dict]]:
     return sessions
 
 
-_SLEEP_STAGES = frozenset(("core", "deep", "rem"))
+_SLEEP_STAGES = frozenset(("asleep", "core", "deep", "rem"))
 
 
 def _sleep_hours(phases: list[dict]) -> float:
     stage_phases = [p for p in phases if p["phase"] in _SLEEP_STAGES]
-    asleep_phases = [p for p in phases if p["phase"] == "asleep"]
     if stage_phases:
-        stage_total = sum(p["hours"] for p in stage_phases)
-        # "asleep" is additional unclassified sleep when smaller than the
-        # stage total; when it equals the total it's an HAE summary field.
-        asleep_total = sum(p["hours"] for p in asleep_phases)
-        if asleep_phases and asleep_total < stage_total:
-            return stage_total + asleep_total
-        return stage_total
-    if asleep_phases:
-        return sum(p["hours"] for p in asleep_phases)
+        return sum(p["hours"] for p in stage_phases)
     return sum(p["hours"] for p in phases)
 
 
