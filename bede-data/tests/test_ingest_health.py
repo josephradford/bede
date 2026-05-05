@@ -327,6 +327,25 @@ def test_parse_state_of_mind_top_level():
     assert json.loads(result["state_of_mind"][0]["associations"]) == ["Work"]
 
 
+def test_parse_state_of_mind_top_level_payload():
+    """HAE may send stateOfMind at the payload root, not inside data."""
+    payload = {
+        "stateOfMind": [
+            {
+                "start": "2026-05-05 10:00:00 +1000",
+                "kind": "mood",
+                "valence": -0.3,
+                "labels": ["Anxious"],
+                "associations": ["Health"],
+            }
+        ]
+    }
+    result = parse_health_payload(payload)
+    assert len(result["state_of_mind"]) == 1
+    assert result["state_of_mind"][0]["valence"] == -0.3
+    assert result["state_of_mind"][0]["date"] == "2026-05-05"
+
+
 def test_parse_skips_metrics_with_no_qty():
     payload = {
         "data": {
