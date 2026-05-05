@@ -6,9 +6,10 @@ from bede_data.db.schema import SCHEMA_SQL, SCHEMA_VERSION, tables_needing_reset
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(settings.sqlite_db_path)
+    conn = sqlite3.connect(settings.sqlite_db_path, check_same_thread=False, timeout=60)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 30000")
     return conn
 
 
