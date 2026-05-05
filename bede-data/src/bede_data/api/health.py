@@ -50,16 +50,13 @@ def _group_into_sessions(phases: list[dict]) -> list[list[dict]]:
     return sessions
 
 
-_SLEEP_STAGES = frozenset(("core", "deep", "rem"))
+_SLEEP_STAGES = frozenset(("asleep", "core", "deep", "rem"))
 
 
 def _sleep_hours(phases: list[dict]) -> float:
     stage_phases = [p for p in phases if p["phase"] in _SLEEP_STAGES]
     if stage_phases:
         return sum(p["hours"] for p in stage_phases)
-    asleep_phases = [p for p in phases if p["phase"] == "asleep"]
-    if asleep_phases:
-        return sum(p["hours"] for p in asleep_phases)
     return sum(p["hours"] for p in phases)
 
 

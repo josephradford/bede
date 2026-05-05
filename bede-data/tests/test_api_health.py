@@ -380,16 +380,16 @@ def test_get_sleep_separates_nap_from_overnight(client, db):
     assert data["wake_time"] == "2026-04-30T05:18:00"
 
 
-def test_get_sleep_excludes_overlapping_phases_from_total(client, db):
-    """When HAE sends all six aggregated fields, total should only count
-    core+deep+rem — not awake, asleep, or inBed which overlap."""
+def test_get_sleep_excludes_awake_and_inbed_from_total(client, db):
+    """Total should count core+deep+rem+asleep (actual sleep) but exclude
+    awake and inBed which are non-sleep time-in-bed metrics."""
     for phase, hours in [
         ("core", 3.5),
         ("deep", 0.8),
         ("rem", 2.0),
-        ("awake", 1.05),
-        ("asleep", 6.3),
-        ("inBed", 7.35),
+        ("asleep", 1.2),
+        ("awake", 0.85),
+        ("inBed", 8.35),
     ]:
         db.execute(
             "INSERT INTO sleep_phases (date, phase, hours, start_time, end_time, source) VALUES (?, ?, ?, ?, ?, ?)",
@@ -407,9 +407,9 @@ def test_get_sleep_excludes_overlapping_phases_from_total(client, db):
     response = client.get("/api/health/sleep", params={"date": "2026-05-01"})
     assert response.status_code == 200
     data = response.json()
-    # Only core + deep + rem = 6.3, NOT 20.0 (all six summed)
-    assert data["total_hours"] == 6.3
-    assert data["sessions"][0]["total_hours"] == 6.3
+    # core + deep + rem + asleep = 7.5, NOT including awake or inBed
+    assert data["total_hours"] == 7.5
+    assert data["sessions"][0]["total_hours"] == 7.5
 
 
 def test_get_sleep_uses_asleep_when_no_stage_breakdown(client, db):
