@@ -50,7 +50,7 @@ def _group_into_sessions(phases: list[dict]) -> list[list[dict]]:
     return sessions
 
 
-_SLEEP_STAGES = frozenset(("core", "deep", "rem"))
+_SLEEP_STAGES = frozenset(("asleep", "core", "deep", "rem"))
 
 
 def _sleep_hours(phases: list[dict]) -> float:
