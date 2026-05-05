@@ -19,8 +19,7 @@ def _upsert_rows(conn: sqlite3.Connection, table: str, rows: list[dict]) -> int:
     placeholders = ", ".join("?" for _ in columns)
     col_names = ", ".join(columns)
     sql = f"INSERT OR REPLACE INTO [{table}] ({col_names}) VALUES ({placeholders})"
-    for row in rows:
-        conn.execute(sql, [row[c] for c in columns])
+    conn.executemany(sql, [[row[c] for c in columns] for row in rows])
     return len(rows)
 
 
