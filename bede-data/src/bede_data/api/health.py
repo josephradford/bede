@@ -239,7 +239,7 @@ def get_wellbeing(
     mindful_minutes = row["value"] if row else 0
 
     cursor = conn.execute(
-        "SELECT valence, labels, context, associations, recorded_at FROM state_of_mind WHERE date = ? ORDER BY recorded_at",
+        "SELECT valence, kind, valence_classification, labels, associations, recorded_at FROM state_of_mind WHERE date = ? ORDER BY recorded_at",
         (d,),
     )
     state_of_mind = [dict(row) for row in cursor.fetchall()]

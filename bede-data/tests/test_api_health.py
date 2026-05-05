@@ -65,12 +65,13 @@ def _seed_health_data(db):
         ("2026-04-29", "mindful_minutes", 15, "iPhone"),
     )
     db.execute(
-        "INSERT INTO state_of_mind (date, valence, labels, context, associations, recorded_at) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO state_of_mind (date, valence, kind, valence_classification, labels, associations, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             "2026-04-29",
             0.7,
+            "mood",
+            "pleasant",
             "Happy,Calm",
-            "Work",
             "Productivity",
             "2026-04-29T14:00:00Z",
         ),

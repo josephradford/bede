@@ -214,15 +214,13 @@ def _process_state_of_mind(entries: list) -> list[dict]:
         associations = entry.get("associations")
         if isinstance(associations, list):
             associations = json.dumps(associations) if associations else None
-        context = entry.get("context")
-        if isinstance(context, list):
-            context = json.dumps(context) if context else None
         rows.append(
             {
                 "date": date,
                 "valence": entry.get("valence"),
+                "kind": entry.get("kind"),
+                "valence_classification": entry.get("valenceClassification"),
                 "labels": labels,
-                "context": context,
                 "associations": associations,
                 "recorded_at": utc_iso,
             }
@@ -297,14 +295,18 @@ def parse_health_payload(payload: dict) -> dict:
     for workout in data.get("workouts", []) or payload.get("workouts", []):
         start_str = workout.get("start", "")
         end_str = workout.get("end", "")
-        duration = _hours_between(start_str, end_str) * 60
+        raw_duration = workout.get("duration")
+        if raw_duration is not None:
+            duration = float(raw_duration) / 60
+        else:
+            duration = _hours_between(start_str, end_str) * 60
         result["workouts"].append(
             {
                 "date": _parse_date(start_str),
                 "workout_type": workout.get("name", ""),
                 "duration_minutes": round(duration, 1),
                 "active_energy_kj": _extract_qty(
-                    workout.get("activeEnergy") or workout.get("activeEnergyBurned")
+                    workout.get("activeEnergyBurned") or workout.get("activeEnergy")
                 ),
                 "avg_heart_rate": _extract_qty(workout.get("avgHeartRate")),
                 "max_heart_rate": _extract_qty(workout.get("maxHeartRate")),
@@ -328,7 +330,7 @@ def parse_health_payload(payload: dict) -> dict:
                 "date": date,
                 "medication": med.get("displayText", ""),
                 "quantity": med.get("dosage"),
-                "unit": med.get("form"),
+                "unit": med.get("units") or med.get("form"),
                 "recorded_at": _parse_datetime(ts),
                 "status": med.get("status"),
             }
