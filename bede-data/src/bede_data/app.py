@@ -21,14 +21,12 @@ from bede_data.api.vault_data import router as vault_data_router
 from bede_data.api.vault_queue import router as vault_queue_router
 from bede_data.api.weather import router as weather_router
 from bede_data.db.connection import get_db, init_db
-from bede_data.ingest.payload_log import configure_payload_logging
 from bede_data.ingest.router import router as ingest_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    configure_payload_logging()
     yield
 
 

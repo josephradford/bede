@@ -1,5 +1,3 @@
-import json
-import logging
 import sqlite3
 from datetime import datetime, timezone
 
@@ -9,8 +7,6 @@ from bede_data.db.connection import get_db
 from bede_data.ingest.auth import verify_ingest_token
 from bede_data.ingest.health_parser import parse_health_payload
 from bede_data.ingest.vault_parser import parse_vault_payload
-
-_payload_logger = logging.getLogger("bede_data.ingest.health_payloads")
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -61,7 +57,6 @@ def ingest_health(
     _token: str = Depends(verify_ingest_token),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    _payload_logger.debug(json.dumps(payload, default=str))
     parsed = parse_health_payload(payload)
     total = 0
     total += _upsert_rows(conn, "health_metrics", parsed["health_metrics"])
