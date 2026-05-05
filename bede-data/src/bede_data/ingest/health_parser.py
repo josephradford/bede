@@ -313,7 +313,9 @@ def parse_health_payload(payload: dict) -> dict:
         )
 
     result["state_of_mind"].extend(
-        _process_state_of_mind(data.get("stateOfMind", []) or payload.get("stateOfMind", []))
+        _process_state_of_mind(
+            data.get("stateOfMind", []) or payload.get("stateOfMind", [])
+        )
     )
 
     for med in data.get("medications", []) or payload.get("medications", []):
