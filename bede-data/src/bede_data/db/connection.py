@@ -52,15 +52,11 @@ def init_db() -> None:
         if existing is not None and existing < 8:
             for col in ["kind", "valence_classification"]:
                 try:
-                    conn.execute(
-                        f"ALTER TABLE state_of_mind ADD COLUMN {col} TEXT"
-                    )
+                    conn.execute(f"ALTER TABLE state_of_mind ADD COLUMN {col} TEXT")
                 except sqlite3.OperationalError:
                     pass
             try:
-                conn.execute(
-                    "ALTER TABLE state_of_mind DROP COLUMN context"
-                )
+                conn.execute("ALTER TABLE state_of_mind DROP COLUMN context")
             except sqlite3.OperationalError:
                 pass
             conn.commit()
