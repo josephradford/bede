@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 # Tables whose column names changed from the prototype bede schema.
 # init_db drops these if they have old-style columns, then SCHEMA_SQL recreates them.
@@ -70,13 +70,14 @@ CREATE TABLE IF NOT EXISTS workouts (
 );
 
 CREATE TABLE IF NOT EXISTS state_of_mind (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    date        TEXT NOT NULL,
-    valence     REAL,
-    labels      TEXT,
-    context     TEXT,
-    associations TEXT,
-    recorded_at TEXT,
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    date                   TEXT NOT NULL,
+    valence                REAL,
+    kind                   TEXT,
+    valence_classification TEXT,
+    labels                 TEXT,
+    associations           TEXT,
+    recorded_at            TEXT,
     UNIQUE (date, recorded_at)
 );
 

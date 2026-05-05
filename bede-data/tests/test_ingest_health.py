@@ -219,6 +219,67 @@ def test_parse_workouts_scalar_fields():
     assert result["workouts"][0]["avg_heart_rate"] == 90
 
 
+def test_parse_workouts_active_energy_burned_preferred():
+    """activeEnergyBurned (summary total) is preferred over activeEnergy (time-series array)."""
+    payload = {
+        "data": {
+            "workouts": [
+                {
+                    "name": "Running",
+                    "start": "2026-04-29 07:00:00 +1000",
+                    "end": "2026-04-29 07:45:00 +1000",
+                    "activeEnergyBurned": {"qty": 1800, "units": "kJ"},
+                    "activeEnergy": [
+                        {"qty": 300, "date": "2026-04-29 07:00:00 +1000"},
+                        {"qty": 350, "date": "2026-04-29 07:15:00 +1000"},
+                    ],
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert result["workouts"][0]["active_energy_kj"] == 1800
+
+
+def test_parse_workouts_uses_duration_field():
+    """When HAE provides a duration field (seconds), use it instead of calculating from start/end."""
+    payload = {
+        "data": {
+            "workouts": [
+                {
+                    "name": "Running",
+                    "start": "2026-04-29 07:00:00 +1000",
+                    "end": "2026-04-29 07:45:00 +1000",
+                    "duration": 2700,
+                    "activeEnergyBurned": {"qty": 1800, "units": "kJ"},
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert result["workouts"][0]["duration_minutes"] == 45.0
+
+
+def test_parse_workouts_duration_field_differs_from_calculated():
+    """duration field should be used even when it differs from start/end calculation."""
+    payload = {
+        "data": {
+            "workouts": [
+                {
+                    "name": "Running",
+                    "start": "2026-04-29 07:00:00 +1000",
+                    "end": "2026-04-29 08:00:00 +1000",
+                    "duration": 1800,
+                    "activeEnergyBurned": {"qty": 1200, "units": "kJ"},
+                }
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    # duration=1800s = 30 minutes, NOT 60 minutes from start/end diff
+    assert result["workouts"][0]["duration_minutes"] == 30.0
+
+
 def test_parse_medications_regex():
     payload = {
         "data": {
@@ -301,6 +362,27 @@ def test_parse_hae_medications_skipped():
     assert result["medications"][0]["status"] == "Skipped"
 
 
+def test_parse_hae_medications_units_preferred_over_form():
+    """HAE sends 'units' field (e.g. 'count') which should be preferred over 'form'."""
+    payload = {
+        "data": {
+            "medications": [
+                {
+                    "displayText": "Aspirin",
+                    "scheduledDate": "2026-04-29 08:00:00 +1000",
+                    "units": "count",
+                    "form": "Tablet",
+                    "status": "Taken",
+                    "isArchived": False,
+                    "dosage": 1,
+                },
+            ]
+        }
+    }
+    result = parse_health_payload(payload)
+    assert result["medications"][0]["unit"] == "count"
+
+
 def test_parse_state_of_mind_top_level():
     """stateOfMind is a top-level array in data, not inside metrics."""
     payload = {
@@ -311,6 +393,7 @@ def test_parse_state_of_mind_top_level():
                     "end": "2026-04-29 14:00:00 +1000",
                     "kind": "mood",
                     "valence": 0.7,
+                    "valenceClassification": "pleasant",
                     "labels": ["Happy", "Calm"],
                     "associations": ["Work"],
                 }
@@ -320,6 +403,8 @@ def test_parse_state_of_mind_top_level():
     result = parse_health_payload(payload)
     assert len(result["state_of_mind"]) == 1
     assert result["state_of_mind"][0]["valence"] == 0.7
+    assert result["state_of_mind"][0]["kind"] == "mood"
+    assert result["state_of_mind"][0]["valence_classification"] == "pleasant"
     assert result["state_of_mind"][0]["date"] == "2026-04-29"
     import json
 
@@ -335,6 +420,7 @@ def test_parse_state_of_mind_top_level_payload():
                 "start": "2026-05-05 10:00:00 +1000",
                 "kind": "mood",
                 "valence": -0.3,
+                "valenceClassification": "unpleasant",
                 "labels": ["Anxious"],
                 "associations": ["Health"],
             }
@@ -343,6 +429,8 @@ def test_parse_state_of_mind_top_level_payload():
     result = parse_health_payload(payload)
     assert len(result["state_of_mind"]) == 1
     assert result["state_of_mind"][0]["valence"] == -0.3
+    assert result["state_of_mind"][0]["kind"] == "mood"
+    assert result["state_of_mind"][0]["valence_classification"] == "unpleasant"
     assert result["state_of_mind"][0]["date"] == "2026-05-05"
 
 

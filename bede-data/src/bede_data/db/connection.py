@@ -49,6 +49,21 @@ def init_db() -> None:
                 conn.commit()
             except sqlite3.OperationalError:
                 pass
+        if existing is not None and existing < 8:
+            for col in ["kind", "valence_classification"]:
+                try:
+                    conn.execute(
+                        f"ALTER TABLE state_of_mind ADD COLUMN {col} TEXT"
+                    )
+                except sqlite3.OperationalError:
+                    pass
+            try:
+                conn.execute(
+                    "ALTER TABLE state_of_mind DROP COLUMN context"
+                )
+            except sqlite3.OperationalError:
+                pass
+            conn.commit()
         conn.commit()
         conn.executescript(SCHEMA_SQL)
         existing = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
