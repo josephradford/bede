@@ -5,9 +5,10 @@ def test_get_analytics_flags_empty(client):
 
 
 def test_run_analytics_and_get_flags(client, db):
-    from datetime import date, timedelta
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
 
-    today = date.today()
+    today = datetime.now(ZoneInfo("Australia/Sydney")).date()
     for offset in range(3):
         d = (today - timedelta(days=2 - offset)).isoformat()
         db.execute(
