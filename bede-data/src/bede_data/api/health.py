@@ -264,7 +264,7 @@ def get_medications(
 ):
     d = _resolve_date(date, timezone)
     cursor = conn.execute(
-        "SELECT medication, quantity, unit, recorded_at FROM medications WHERE date = ? ORDER BY recorded_at",
+        "SELECT medication, quantity, unit, recorded_at, status FROM medications WHERE date = ? ORDER BY recorded_at",
         (d,),
     )
     meds = [dict(row) for row in cursor.fetchall()]
