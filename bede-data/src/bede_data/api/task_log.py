@@ -76,14 +76,22 @@ def update_task_log(
 @router.get("/history")
 def get_task_history(
     task_name: str | None = Query(None),
+    since: str | None = Query(None),
+    until: str | None = Query(None),
     limit: int = Query(50, ge=1, le=500),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    query = "SELECT id, task_name, start_time, end_time, duration_seconds, status, error_detail, created_at FROM task_executions"
+    query = "SELECT id, task_name, start_time, end_time, duration_seconds, status, error_detail, created_at FROM task_executions WHERE 1=1"
     params: list = []
     if task_name:
-        query += " WHERE task_name = ?"
+        query += " AND task_name = ?"
         params.append(task_name)
+    if since:
+        query += " AND start_time >= ?"
+        params.append(since)
+    if until:
+        query += " AND start_time <= ?"
+        params.append(until)
     query += " ORDER BY start_time DESC LIMIT ?"
     params.append(limit)
     cursor = conn.execute(query, params)
