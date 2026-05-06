@@ -2,6 +2,8 @@
 
 Captured from real HAE payloads on 2026-05-05. Each export type arrives as a separate POST to `/ingest/health`.
 
+For automation setup, date range gotchas, and troubleshooting: [hae-setup.md](hae-setup.md)
+
 Reference docs: https://help.healthyapps.dev/en/health-auto-export/export-format/
 
 ## Workouts
