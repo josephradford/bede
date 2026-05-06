@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bede — Dashboard</title>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <load src="partials/nav.html" />
+
+  <main class="max-w-5xl mx-auto p-6" x-data="dashboard()" x-init="init()">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <!-- Data Freshness -->
+      <div class="bg-surface-card border border-surface-border rounded-lg p-4">
+        <h2 class="text-xs uppercase text-gray-500 mb-3">Data Freshness</h2>
+        <template x-if="error">
+          <p class="text-status-error text-sm" x-text="error"></p>
+        </template>
+        <div class="space-y-1">
+          <template x-for="src in freshness" :key="src.source">
+            <div class="flex items-center justify-between text-sm">
+              <span class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full" :class="freshnessColor(src)"></span>
+                <span x-text="src.source"></span>
+              </span>
+              <span class="text-gray-500 text-xs" x-text="timeAgo(src.last_received_at)"></span>
+            </div>
+          </template>
+        </div>
+        <a href="/tasks.html" class="text-xs text-gray-500 hover:text-gray-300 mt-3 inline-block">View all →</a>
+      </div>
+
+      <!-- Task Status -->
+      <div class="bg-surface-card border border-surface-border rounded-lg p-4">
+        <h2 class="text-xs uppercase text-gray-500 mb-3">Task Status</h2>
+        <template x-if="error">
+          <p class="text-status-error text-sm" x-text="error"></p>
+        </template>
+        <div class="space-y-1">
+          <template x-for="task in recentTasks" :key="task.id">
+            <div class="flex items-center justify-between text-sm">
+              <span x-text="task.task_name"></span>
+              <span class="text-xs" :class="statusColor(task.status)">
+                <span x-text="statusIcon(task.status)"></span>
+                <span x-text="task.status === 'success' ? formatTime(task.start_time) : task.error_detail || task.status"></span>
+              </span>
+            </div>
+          </template>
+        </div>
+        <a href="/tasks.html" class="text-xs text-gray-500 hover:text-gray-300 mt-3 inline-block">View all →</a>
+      </div>
+
+      <!-- Storage -->
+      <div class="bg-surface-card border border-surface-border rounded-lg p-4">
+        <h2 class="text-xs uppercase text-gray-500 mb-3">Storage</h2>
+        <template x-if="error">
+          <p class="text-status-error text-sm" x-text="error"></p>
+        </template>
+        <div x-show="storage">
+          <p class="text-2xl font-semibold" x-text="formatBytes(storage?.db_size_bytes)"></p>
+          <p class="text-xs text-gray-500" x-text="totalRows() + ' rows across ' + (storage?.tables?.length || 0) + ' tables'"></p>
+        </div>
+      </div>
+
+      <!-- Today's Schedule -->
+      <div class="bg-surface-card border border-surface-border rounded-lg p-4">
+        <h2 class="text-xs uppercase text-gray-500 mb-3">Today's Schedule</h2>
+        <template x-if="error">
+          <p class="text-status-error text-sm" x-text="error"></p>
+        </template>
+        <div class="space-y-1">
+          <template x-for="item in schedule" :key="item.task_name">
+            <div class="flex items-center justify-between text-sm">
+              <span>
+                <span x-text="item.completed ? '☑' : '☐'"></span>
+                <span x-text="item.task_name"></span>
+              </span>
+              <span class="text-xs" :class="item.completed ? 'text-gray-500' : 'text-status-pending'" x-text="item.display_time"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="text-center text-xs text-gray-600 mt-4">
+      Last updated: <span x-text="lastUpdated"></span>
+    </p>
+  </main>
+
+  <script type="module" src="/js/app.js"></script>
+  <script>
+    function dashboard() {
+      return {
+        freshness: [],
+        recentTasks: [],
+        storage: null,
+        schedule: [],
+        error: null,
+        lastUpdated: "",
+        refreshInterval: null,
+
+        async init() {
+          await this.refresh();
+          this.refreshInterval = setInterval(() => this.refresh(), 60000);
+        },
+
+        async refresh() {
+          const [freshRes, taskRes, storageRes, schedRes, historyRes] = await Promise.all([
+            api("/freshness"),
+            api("/tasks/history?limit=10"),
+            api("/storage"),
+            api("/config/schedules"),
+            api("/tasks/history?since=" + todayStart()),
+          ]);
+
+          if (freshRes.error || taskRes.error || storageRes.error || schedRes.error) {
+            this.error = freshRes.error || taskRes.error || storageRes.error || schedRes.error;
+            return;
+          }
+
+          this.error = null;
+          this.freshness = freshRes.data.sources;
+          this.recentTasks = taskRes.data.executions;
+          this.storage = storageRes.data;
+
+          const todayExecs = historyRes.data?.executions || [];
+          const completedNames = new Set(todayExecs.filter(e => e.status === "success").map(e => e.task_name));
+          this.schedule = (schedRes.data.schedules || [])
+            .filter(s => s.enabled)
+            .map(s => ({
+              task_name: s.task_name,
+              completed: completedNames.has(s.task_name),
+              display_time: s.cron_expression,
+            }));
+
+          this.lastUpdated = new Date().toLocaleTimeString();
+        },
+
+        freshnessColor(src) {
+          if (!src.last_received_at) return "bg-status-error";
+          const age = (Date.now() - new Date(src.last_received_at).getTime()) / 1000;
+          const expected = src.expected_interval_seconds || 86400;
+          if (age <= expected) return "bg-status-ok";
+          if (age <= expected * 2) return "bg-status-warn";
+          return "bg-status-error";
+        },
+
+        statusColor(status) {
+          if (status === "success") return "text-status-ok";
+          if (status === "failure" || status === "timeout") return "text-status-error";
+          return "text-status-pending";
+        },
+
+        statusIcon(status) {
+          if (status === "success") return "✓";
+          if (status === "failure" || status === "timeout") return "✗";
+          return "⋯";
+        },
+
+        formatTime(ts) {
+          if (!ts) return "";
+          return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        },
+
+        formatBytes(bytes) {
+          if (!bytes) return "0 B";
+          if (bytes < 1024) return bytes + " B";
+          if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+          return (bytes / 1048576).toFixed(1) + " MB";
+        },
+
+        totalRows() {
+          return (this.storage?.tables || []).reduce((sum, t) => sum + t.row_count, 0).toLocaleString();
+        },
+
+        timeAgo(ts) {
+          if (!ts) return "never";
+          const seconds = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+          if (seconds < 60) return seconds + "s ago";
+          if (seconds < 3600) return Math.floor(seconds / 60) + "m ago";
+          if (seconds < 86400) return Math.floor(seconds / 3600) + "h ago";
+          return Math.floor(seconds / 86400) + "d ago";
+        },
+      };
+    }
+
+    function todayStart() {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d.toISOString();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bede — Goals</title>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <load src="partials/nav.html" />
+
+  <main class="max-w-4xl mx-auto p-6" x-data="goalsPage()" x-init="init()">
+    <h1 class="text-xl font-semibold mb-4">Goals</h1>
+
+    <div class="flex gap-3 mb-4">
+      <select x-model="statusFilter" @change="applyFilter()" class="bg-surface-card border border-surface-border rounded px-3 py-1 text-sm text-gray-200">
+        <option value="active">Active</option>
+        <option value="completed">Completed</option>
+        <option value="all">All</option>
+      </select>
+    </div>
+
+    <template x-if="error">
+      <div class="bg-surface-card border border-status-error rounded-lg p-4 text-status-error text-sm" x-text="error"></div>
+    </template>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <template x-for="goal in filtered" :key="goal.id">
+        <div class="bg-surface-card border rounded-lg p-4" :class="goalBorder(goal)">
+          <div class="flex items-start justify-between mb-2">
+            <h3 class="text-sm font-medium text-gray-100" x-text="goal.name"></h3>
+            <span class="shrink-0 text-xs px-2 py-0.5 rounded" :class="statusBadge(goal.status)" x-text="goal.status"></span>
+          </div>
+          <p x-show="goal.description" class="text-xs text-gray-400 mb-2" x-text="goal.description"></p>
+          <div class="flex gap-4 text-xs text-gray-500">
+            <span x-show="goal.deadline">Deadline: <span x-text="goal.deadline"></span></span>
+            <span>Updated: <span x-text="formatDate(goal.updated_at)"></span></span>
+          </div>
+          <p x-show="goal.measurable_indicators" class="text-xs text-gray-500 mt-1" x-text="goal.measurable_indicators"></p>
+        </div>
+      </template>
+      <p x-show="filtered.length === 0 && !error" class="text-gray-500 text-sm col-span-2">No goals found.</p>
+    </div>
+  </main>
+
+  <script type="module" src="/js/app.js"></script>
+  <script>
+    function goalsPage() {
+      return {
+        goals: [],
+        filtered: [],
+        statusFilter: "active",
+        error: null,
+
+        async init() {
+          const res = await api("/goals");
+          if (res.error) {
+            this.error = res.error;
+            return;
+          }
+          this.goals = res.data.goals || [];
+          this.applyFilter();
+        },
+
+        applyFilter() {
+          if (this.statusFilter === "all") {
+            this.filtered = this.goals;
+          } else {
+            this.filtered = this.goals.filter(g => g.status === this.statusFilter);
+          }
+        },
+
+        goalBorder(goal) {
+          if (goal.status !== "active") return "border-surface-border";
+          const updated = new Date(goal.updated_at);
+          const daysSince = (Date.now() - updated.getTime()) / 86400000;
+          if (daysSince > 14) return "border-status-warn";
+          return "border-surface-border";
+        },
+
+        statusBadge(status) {
+          if (status === "active") return "bg-blue-900/50 text-blue-300";
+          if (status === "completed") return "bg-green-900/50 text-green-300";
+          return "bg-gray-700 text-gray-300";
+        },
+
+        formatDate(ts) {
+          if (!ts) return "";
+          return new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" });
+        },
+      };
+    }
+  </script>
+</body>
+</html>

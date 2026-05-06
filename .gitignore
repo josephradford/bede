@@ -6,6 +6,8 @@ venv/
 *.tmp
 *.temp
 .DS_Store
+node_modules/
+dist/
 
 CLAUDE.md
 CLAUDE.local.md

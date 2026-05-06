@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bede — Tasks</title>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <load src="partials/nav.html" />
+
+  <main class="max-w-4xl mx-auto p-6" x-data="tasksPage()" x-init="init()">
+    <h1 class="text-xl font-semibold mb-4">Task Execution History</h1>
+
+    <div class="flex flex-wrap gap-3 mb-4">
+      <select x-model="dateRange" @change="refresh()" class="bg-surface-card border border-surface-border rounded px-3 py-1 text-sm text-gray-200">
+        <option value="today">Today</option>
+        <option value="yesterday">Yesterday</option>
+        <option value="7d">Last 7 days</option>
+        <option value="30d">Last 30 days</option>
+      </select>
+      <select x-model="statusFilter" @change="applyFilter()" class="bg-surface-card border border-surface-border rounded px-3 py-1 text-sm text-gray-200">
+        <option value="all">All statuses</option>
+        <option value="success">Success</option>
+        <option value="failure">Failure</option>
+        <option value="timeout">Timeout</option>
+      </select>
+    </div>
+
+    <template x-if="error">
+      <div class="bg-surface-card border border-status-error rounded-lg p-4 text-status-error text-sm" x-text="error"></div>
+    </template>
+
+    <div class="space-y-1">
+      <template x-for="task in filtered" :key="task.id">
+        <div class="bg-surface-card border border-surface-border rounded-lg p-3 text-sm">
+          <div class="flex items-center justify-between cursor-pointer" @click="task._expanded = !task._expanded">
+            <div class="flex items-center gap-3">
+              <span class="w-2 h-2 rounded-full" :class="dotColor(task.status)"></span>
+              <span x-text="task.task_name"></span>
+            </div>
+            <div class="flex items-center gap-4 text-xs text-gray-500">
+              <span x-text="formatDuration(task.duration_seconds)"></span>
+              <span x-text="formatDateTime(task.start_time)"></span>
+            </div>
+          </div>
+          <div x-show="task._expanded" x-cloak class="mt-2 pl-5 text-xs text-gray-400">
+            <p x-show="task.error_detail" class="text-status-error" x-text="task.error_detail"></p>
+            <p>Start: <span x-text="task.start_time"></span></p>
+            <p x-show="task.end_time">End: <span x-text="task.end_time"></span></p>
+          </div>
+        </div>
+      </template>
+      <p x-show="filtered.length === 0 && !error" class="text-gray-500 text-sm">No tasks found for this period.</p>
+    </div>
+  </main>
+
+  <script type="module" src="/js/app.js"></script>
+  <script>
+    function tasksPage() {
+      return {
+        dateRange: "today",
+        statusFilter: "all",
+        tasks: [],
+        filtered: [],
+        error: null,
+
+        async init() {
+          await this.refresh();
+        },
+
+        async refresh() {
+          const { since, until } = this.dateParams();
+          let url = `/tasks/history?limit=200&since=${since}`;
+          if (until) url += `&until=${until}`;
+          const res = await api(url);
+          if (res.error) {
+            this.error = res.error;
+            return;
+          }
+          this.error = null;
+          this.tasks = (res.data.executions || []).map(t => ({ ...t, _expanded: false }));
+          this.applyFilter();
+        },
+
+        applyFilter() {
+          if (this.statusFilter === "all") {
+            this.filtered = this.tasks;
+          } else {
+            this.filtered = this.tasks.filter(t => t.status === this.statusFilter);
+          }
+        },
+
+        dateParams() {
+          const now = new Date();
+          let since, until;
+          if (this.dateRange === "today") {
+            since = startOfDay(now);
+          } else if (this.dateRange === "yesterday") {
+            const y = new Date(now);
+            y.setDate(y.getDate() - 1);
+            since = startOfDay(y);
+            until = endOfDay(y);
+          } else if (this.dateRange === "7d") {
+            const d = new Date(now);
+            d.setDate(d.getDate() - 7);
+            since = startOfDay(d);
+          } else {
+            const d = new Date(now);
+            d.setDate(d.getDate() - 30);
+            since = startOfDay(d);
+          }
+          return { since, until };
+        },
+
+        dotColor(status) {
+          if (status === "success") return "bg-status-ok";
+          if (status === "failure" || status === "timeout") return "bg-status-error";
+          return "bg-status-pending";
+        },
+
+        formatDuration(sec) {
+          if (!sec) return "";
+          if (sec < 60) return Math.round(sec) + "s";
+          return Math.round(sec / 60) + "m " + Math.round(sec % 60) + "s";
+        },
+
+        formatDateTime(ts) {
+          if (!ts) return "";
+          return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+        },
+      };
+    }
+
+    function startOfDay(d) {
+      const c = new Date(d);
+      c.setHours(0, 0, 0, 0);
+      return c.toISOString();
+    }
+
+    function endOfDay(d) {
+      const c = new Date(d);
+      c.setHours(23, 59, 59, 999);
+      return c.toISOString();
+    }
+  </script>
+</body>
+</html>

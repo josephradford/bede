@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bede — Conversations</title>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <load src="partials/nav.html" />
+
+  <main class="max-w-4xl mx-auto p-6" x-data="conversationsPage()" x-init="init()">
+    <h1 class="text-xl font-semibold mb-4">Conversations</h1>
+
+    <template x-if="error">
+      <div class="bg-surface-card border border-status-error rounded-lg p-4 text-status-error text-sm" x-text="error"></div>
+    </template>
+
+    <div class="space-y-2">
+      <template x-for="session in sessions" :key="session.session_id">
+        <div class="bg-surface-card border border-surface-border rounded-lg p-3">
+          <div class="flex items-center justify-between cursor-pointer" @click="toggle(session)">
+            <div class="flex items-center gap-3">
+              <span class="text-sm text-gray-200" x-text="formatDate(session.first_timestamp)"></span>
+              <span class="text-xs text-gray-500" x-text="session.message_count + ' messages'"></span>
+            </div>
+            <span class="text-xs text-gray-500 font-mono" x-text="session.session_id.slice(0, 8) + '…'"></span>
+          </div>
+          <div x-show="session._expanded" x-cloak class="mt-3 border-t border-surface-border pt-3">
+            <template x-if="session._loading">
+              <p class="text-xs text-gray-500">Loading…</p>
+            </template>
+            <div x-show="session._messages" class="space-y-3 max-h-96 overflow-y-auto text-sm">
+              <template x-for="(msg, idx) in session._messages || []" :key="idx">
+                <div class="border-l-2 pl-3" :class="msg.role === 'user' ? 'border-status-pending' : 'border-status-ok'">
+                  <p class="text-xs text-gray-500 mb-1" x-text="msg.role + ' · ' + formatTime(msg.timestamp)"></p>
+                  <div class="text-gray-300 prose prose-sm prose-invert max-w-none" x-html="renderMarkdown(msg.content)"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+      <p x-show="sessions.length === 0 && !error" class="text-gray-500 text-sm">No conversations found.</p>
+    </div>
+  </main>
+
+  <script type="module" src="/js/app.js"></script>
+  <script>
+    function conversationsPage() {
+      return {
+        sessions: [],
+        error: null,
+
+        async init() {
+          const res = await api("/conversations");
+          if (res.error) {
+            this.error = res.error;
+            return;
+          }
+          this.sessions = (res.data.sessions || [])
+            .sort((a, b) => (b.first_timestamp || "").localeCompare(a.first_timestamp || ""))
+            .map(s => ({ ...s, _expanded: false, _loading: false, _messages: null }));
+        },
+
+        async toggle(session) {
+          if (session._expanded) {
+            session._expanded = false;
+            return;
+          }
+          session._expanded = true;
+          if (session._messages) return;
+
+          session._loading = true;
+          const res = await api(`/conversations/${session.session_id}`);
+          session._loading = false;
+          if (res.error) {
+            session._messages = [{ role: "system", content: "Failed to load: " + res.error, timestamp: "" }];
+            return;
+          }
+          session._messages = (res.data.messages || []).filter(m => m.role && m.content);
+        },
+
+        formatDate(ts) {
+          if (!ts) return "Unknown date";
+          return new Date(ts).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+        },
+
+        formatTime(ts) {
+          if (!ts) return "";
+          return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        },
+      };
+    }
+  </script>
+</body>
+</html>
