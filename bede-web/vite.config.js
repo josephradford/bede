@@ -1,10 +1,10 @@
 import { resolve } from "path";
 import { defineConfig } from "vite";
-import { htmlInjectionPlugin } from "vite-plugin-html-inject";
+import injectHTML from "vite-plugin-html-inject";
 
 export default defineConfig({
   root: "src",
-  plugins: [htmlInjectionPlugin()],
+  plugins: [injectHTML()],
   build: {
     outDir: "../dist",
     emptyOutDir: true,
