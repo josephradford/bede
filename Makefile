@@ -1,4 +1,4 @@
-.PHONY: test test-core test-data test-data-mcp test-workspace-mcp
+.PHONY: test test-core test-data test-data-mcp test-workspace-mcp test-web
 
 test:
 	cd bede-core && uv run pytest tests/ -v
@@ -16,3 +16,6 @@ test-data-mcp:
 
 test-workspace-mcp:
 	@echo "No tests — bede-workspace-mcp wraps a third-party package with no custom code"
+
+test-web:
+	cd bede-web && npm run build
