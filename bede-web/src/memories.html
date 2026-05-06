@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bede — Memories</title>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <load src="partials/nav.html" />
+
+  <main class="max-w-4xl mx-auto p-6" x-data="memoriesPage()" x-init="init()">
+    <h1 class="text-xl font-semibold mb-4">Memories</h1>
+
+    <div class="flex flex-wrap gap-3 mb-4">
+      <input
+        type="text"
+        x-model="search"
+        @input="applyFilter()"
+        placeholder="Search memories..."
+        class="bg-surface-card border border-surface-border rounded px-3 py-1 text-sm text-gray-200 w-64"
+      />
+      <select x-model="typeFilter" @change="applyFilter()" class="bg-surface-card border border-surface-border rounded px-3 py-1 text-sm text-gray-200">
+        <option value="all">All types</option>
+        <option value="fact">Fact</option>
+        <option value="preference">Preference</option>
+        <option value="correction">Correction</option>
+      </select>
+    </div>
+
+    <template x-if="error">
+      <div class="bg-surface-card border border-status-error rounded-lg p-4 text-status-error text-sm" x-text="error"></div>
+    </template>
+
+    <div class="space-y-2">
+      <template x-for="mem in filtered" :key="mem.id">
+        <div class="bg-surface-card border border-surface-border rounded-lg p-3">
+          <div class="flex items-start justify-between gap-3">
+            <p class="text-sm text-gray-200" x-text="mem.content"></p>
+            <span class="shrink-0 text-xs px-2 py-0.5 rounded" :class="typeBadge(mem.type)" x-text="mem.type"></span>
+          </div>
+          <div class="flex gap-4 mt-2 text-xs text-gray-500">
+            <span>Created: <span x-text="formatDate(mem.created_at)"></span></span>
+            <span x-show="mem.last_referenced_at">Last used: <span x-text="formatDate(mem.last_referenced_at)"></span></span>
+          </div>
+        </div>
+      </template>
+      <p x-show="filtered.length === 0 && !error" class="text-gray-500 text-sm">No memories found.</p>
+    </div>
+  </main>
+
+  <script type="module" src="/js/app.js"></script>
+  <script>
+    function memoriesPage() {
+      return {
+        memories: [],
+        filtered: [],
+        search: "",
+        typeFilter: "all",
+        error: null,
+
+        async init() {
+          const res = await api("/memories?limit=500");
+          if (res.error) {
+            this.error = res.error;
+            return;
+          }
+          this.memories = res.data.memories || [];
+          this.applyFilter();
+        },
+
+        applyFilter() {
+          let result = this.memories;
+          if (this.typeFilter !== "all") {
+            result = result.filter(m => m.type === this.typeFilter);
+          }
+          if (this.search.trim()) {
+            const q = this.search.toLowerCase();
+            result = result.filter(m => m.content.toLowerCase().includes(q));
+          }
+          this.filtered = result;
+        },
+
+        typeBadge(type) {
+          if (type === "fact") return "bg-blue-900/50 text-blue-300";
+          if (type === "preference") return "bg-purple-900/50 text-purple-300";
+          if (type === "correction") return "bg-amber-900/50 text-amber-300";
+          return "bg-gray-700 text-gray-300";
+        },
+
+        formatDate(ts) {
+          if (!ts) return "";
+          return new Date(ts).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+        },
+      };
+    }
+  </script>
+</body>
+</html>
