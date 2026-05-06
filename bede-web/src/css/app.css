@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface-bg: #0f1923;
+  --color-surface-card: #1a2332;
+  --color-surface-border: #2a3a4a;
+  --color-status-ok: #6ee7b7;
+  --color-status-warn: #fbbf24;
+  --color-status-error: #f87171;
+  --color-status-pending: #93c5fd;
+}
+
+body {
+  @apply bg-surface-bg text-gray-200 font-sans;
+}
