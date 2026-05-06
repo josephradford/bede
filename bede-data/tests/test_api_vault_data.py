@@ -120,7 +120,14 @@ def test_get_screen_time_device_case_insensitive(client, db):
 def test_get_safari_device_case_insensitive(client, db):
     db.execute(
         "INSERT INTO safari_history (date, device, domain, title, url, visited_at) VALUES (?, ?, ?, ?, ?, ?)",
-        ("2026-04-29", "iPhone", "example.com", "Example", "https://example.com", "2026-04-29T12:00:00Z"),
+        (
+            "2026-04-29",
+            "iPhone",
+            "example.com",
+            "Example",
+            "https://example.com",
+            "2026-04-29T12:00:00Z",
+        ),
     )
     db.commit()
     response = client.get(
