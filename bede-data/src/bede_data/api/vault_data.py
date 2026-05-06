@@ -10,6 +10,12 @@ from bede_data.tz import utc_to_local
 
 router = APIRouter(prefix="/api/vault", tags=["vault"])
 
+_DEVICE_ALIASES = {"phone": "iphone", "mobile": "iphone"}
+
+
+def _normalize_device(device: str) -> str:
+    return _DEVICE_ALIASES.get(device.lower(), device.lower())
+
 
 def _resolve_date(date_str: str, tz_name: str = settings.timezone) -> str:
     tz = ZoneInfo(tz_name)
@@ -32,8 +38,8 @@ def get_screen_time(
     query = "SELECT device, entry_type, name, seconds FROM screen_time WHERE date = ?"
     params: list = [d]
     if device:
-        query += " AND device = ?"
-        params.append(device)
+        query += " AND LOWER(device) = ?"
+        params.append(_normalize_device(device))
     query += " ORDER BY seconds DESC"
     if top_n:
         query += " LIMIT ?"
@@ -56,8 +62,8 @@ def get_safari(
     query = "SELECT device, domain, title, url, visited_at FROM safari_history WHERE date = ?"
     params: list = [d]
     if device:
-        query += " AND device = ?"
-        params.append(device)
+        query += " AND LOWER(device) = ?"
+        params.append(_normalize_device(device))
     if domain:
         query += " AND domain = ?"
         params.append(domain)

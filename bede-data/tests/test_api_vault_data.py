@@ -96,6 +96,42 @@ def test_get_screen_time_filter_device(client, db):
     assert all(e["device"] == "mac" for e in data["entries"])
 
 
+def test_get_screen_time_device_alias(client, db):
+    _seed_vault_data(db)
+    response = client.get(
+        "/api/vault/screen-time", params={"date": "2026-04-29", "device": "phone"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["entries"]) == 1
+    assert data["entries"][0]["device"] == "iphone"
+
+
+def test_get_screen_time_device_case_insensitive(client, db):
+    _seed_vault_data(db)
+    response = client.get(
+        "/api/vault/screen-time", params={"date": "2026-04-29", "device": "Mac"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["entries"]) == 3
+
+
+def test_get_safari_device_case_insensitive(client, db):
+    db.execute(
+        "INSERT INTO safari_history (date, device, domain, title, url, visited_at) VALUES (?, ?, ?, ?, ?, ?)",
+        ("2026-04-29", "iPhone", "example.com", "Example", "https://example.com", "2026-04-29T12:00:00Z"),
+    )
+    db.commit()
+    response = client.get(
+        "/api/vault/safari", params={"date": "2026-04-29", "device": "phone"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["entries"]) == 1
+    assert data["entries"][0]["device"] == "iPhone"
+
+
 def test_get_screen_time_top_n(client, db):
     _seed_vault_data(db)
     response = client.get(
