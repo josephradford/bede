@@ -1,0 +1,21 @@
+<nav class="bg-surface-card border-b border-surface-border px-6 py-3 flex items-center justify-between">
+  <a href="/" class="text-lg font-semibold text-gray-100">Bede</a>
+  <div class="flex gap-6 text-sm">
+    <a href="/" class="nav-link" data-page="index">Dashboard</a>
+    <a href="/tasks.html" class="nav-link" data-page="tasks">Tasks</a>
+    <a href="/memories.html" class="nav-link" data-page="memories">Memories</a>
+    <a href="/goals.html" class="nav-link" data-page="goals">Goals</a>
+    <a href="/conversations.html" class="nav-link" data-page="conversations">Conversations</a>
+  </div>
+</nav>
+<script>
+  document.querySelectorAll(".nav-link").forEach((link) => {
+    const page = link.dataset.page;
+    const current = location.pathname === "/" ? "index" : location.pathname.replace(/^\/|\.html$/g, "");
+    if (page === current) {
+      link.classList.add("text-white", "font-medium");
+    } else {
+      link.classList.add("text-gray-400", "hover:text-gray-200");
+    }
+  });
+</script>
