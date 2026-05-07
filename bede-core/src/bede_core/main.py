@@ -213,6 +213,14 @@ def main():
         )
     )
     app.add_handler(
+        CommandHandler(
+            "digest",
+            create_task_trigger_handler(
+                "News Digest", runner, data_client, settings.allowed_user_id
+            ),
+        )
+    )
+    app.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
             create_message_handler(

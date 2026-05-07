@@ -207,6 +207,31 @@ def delete_monitored_item(item_id: int, conn: sqlite3.Connection = Depends(get_d
     return {"status": "deleted", "id": item_id}
 
 
+@router.put("/monitored-items/{item_id}")
+def update_monitored_item(
+    item_id: int, body: MonitoredItemUpdate, conn: sqlite3.Connection = Depends(get_db)
+):
+    existing = _get_monitored_item(conn, item_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Monitored item not found")
+
+    updates: dict = {"updated_at": _now()}
+    if body.name is not None:
+        updates["name"] = body.name
+    if body.config is not None:
+        updates["config"] = body.config
+    if body.enabled is not None:
+        updates["enabled"] = int(body.enabled)
+
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    conn.execute(
+        f"UPDATE monitored_items SET {set_clause} WHERE id = ?",
+        [*updates.values(), item_id],
+    )
+    conn.commit()
+    return _get_monitored_item(conn, item_id)
+
+
 def _get_monitored_item(conn: sqlite3.Connection, item_id: int) -> dict | None:
     cursor = conn.execute(
         "SELECT id, category, name, config, enabled, created_at, updated_at FROM monitored_items WHERE id = ?",

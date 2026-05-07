@@ -698,6 +698,245 @@ async def delete_monitored_item(item_id: int) -> dict:
     return await client.delete(f"/api/config/monitored-items/{item_id}")
 
 
+@mcp.tool()
+async def update_monitored_item(
+    item_id: int,
+    name: str | None = None,
+    config: str | None = None,
+    enabled: bool | None = None,
+) -> dict:
+    """Update a monitored item's name, config, or enabled status.
+
+    Args:
+        item_id: ID of the item to update.
+        name: New human-readable name.
+        config: New JSON config string.
+        enabled: Set enabled/disabled.
+    """
+    body: dict = {}
+    if name is not None:
+        body["name"] = name
+    if config is not None:
+        body["config"] = config
+    if enabled is not None:
+        body["enabled"] = enabled
+    return await client.put(f"/api/config/monitored-items/{item_id}", body)
+
+
+# ---------------------------------------------------------------------------
+# Deal monitoring tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def record_price_check(
+    monitored_item_id: int,
+    url: str,
+    price: float | None = None,
+    currency: str | None = None,
+    in_stock: bool | None = None,
+    notes: str | None = None,
+) -> dict:
+    """Record a price check observation after scraping a retailer page.
+
+    Call this after visiting a product URL to persist the price and stock status.
+    The system tracks history so price drops and restocks can be detected.
+
+    Args:
+        monitored_item_id: ID of the monitored item this check belongs to.
+        url: The product page URL that was checked.
+        price: The observed price (omit if product page doesn't show a price).
+        currency: Currency code (e.g. 'AUD', 'USD'). Omit to use the API default (AUD).
+        in_stock: Whether the product is currently in stock.
+        notes: Optional notes (e.g. 'sale ends Friday', 'clearance').
+    """
+    body: dict = {"monitored_item_id": monitored_item_id, "url": url}
+    if price is not None:
+        body["price"] = price
+    if currency is not None:
+        body["currency"] = currency
+    if in_stock is not None:
+        body["in_stock"] = in_stock
+    if notes is not None:
+        body["notes"] = notes
+    return await client.post("/api/deals/price-checks", body)
+
+
+@mcp.tool()
+async def get_price_history(
+    monitored_item_id: int,
+    limit: int | None = None,
+    url: str | None = None,
+) -> dict:
+    """Get price check history for a monitored item.
+
+    Returns checks in reverse chronological order. Compare the most recent
+    check against previous ones to detect price drops or restocks.
+
+    Args:
+        monitored_item_id: ID of the monitored item.
+        limit: Max number of checks to return (default 50).
+        url: Filter to a specific product URL.
+    """
+    kwargs: dict = {}
+    if limit is not None:
+        kwargs["limit"] = limit
+    if url is not None:
+        kwargs["url"] = url
+    return await client.get(f"/api/deals/price-history/{monitored_item_id}", **kwargs)
+
+
+@mcp.tool()
+async def report_dead_url(
+    url: str, category: str | None = None, error: str | None = None
+) -> dict:
+    """Report a URL that failed to load or returned an error.
+
+    Call this when a product page returns 404, 403, redirects to a homepage,
+    or otherwise fails. The system tracks failure counts — URLs with repeated
+    failures can be skipped in future checks.
+
+    Args:
+        url: The URL that failed.
+        category: Category for grouping (e.g. 'deal', 'news').
+        error: Description of the failure (e.g. '404 Not Found', 'redirect to homepage').
+    """
+    body: dict = {"url": url}
+    if category is not None:
+        body["category"] = category
+    if error is not None:
+        body["last_error"] = error
+    return await client.post("/api/deals/dead-urls", body)
+
+
+@mcp.tool()
+async def list_dead_urls(category: str | None = None) -> dict:
+    """List known dead URLs to skip during scraping.
+
+    Check this before attempting to scrape — URLs in this list have
+    previously failed and may waste time.
+
+    Args:
+        category: Filter by category (e.g. 'deal', 'news').
+    """
+    kwargs: dict = {}
+    if category is not None:
+        kwargs["category"] = category
+    return await client.get("/api/deals/dead-urls", **kwargs)
+
+
+@mcp.tool()
+async def update_dead_url(
+    url_id: int,
+    disabled: bool | None = None,
+    last_error: str | None = None,
+) -> dict:
+    """Update a dead URL entry (e.g. to disable it permanently).
+
+    Args:
+        url_id: ID of the dead URL entry.
+        disabled: Set to true to permanently skip this URL.
+        last_error: Update the error description.
+    """
+    body: dict = {}
+    if disabled is not None:
+        body["disabled"] = disabled
+    if last_error is not None:
+        body["last_error"] = last_error
+    return await client.put(f"/api/deals/dead-urls/{url_id}", body)
+
+
+# ---------------------------------------------------------------------------
+# News curation tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def save_article(
+    url: str,
+    title: str,
+    source_name: str,
+    category: str | None = None,
+    summary: str | None = None,
+) -> dict:
+    """Save an article found during news curation.
+
+    Handles deduplication by URL — if the article already exists, returns
+    the existing record with already_existed=true instead of creating a
+    duplicate.
+
+    Args:
+        url: The article URL (used as dedup key).
+        title: Article headline.
+        source_name: Where it was found (e.g. 'Hacker News', 'TLDR AI').
+        category: Topic category (e.g. 'ai', 'public_sector', 'platform_tech').
+        summary: Brief summary of the article content.
+    """
+    body: dict = {"url": url, "title": title, "source_name": source_name}
+    if category is not None:
+        body["category"] = category
+    if summary is not None:
+        body["summary"] = summary
+    return await client.post("/api/news/articles", body)
+
+
+@mcp.tool()
+async def list_articles(
+    category: str | None = None,
+    source_name: str | None = None,
+    unsent: bool | None = None,
+    limit: int | None = None,
+) -> dict:
+    """List saved articles, optionally filtered.
+
+    Use unsent=true to get articles not yet included in any digest — this
+    is the primary query for building a news digest.
+
+    Args:
+        category: Filter by topic category.
+        source_name: Filter by source name.
+        unsent: If true, only return articles not yet in a digest.
+        limit: Max articles to return (default 50).
+    """
+    kwargs: dict = {}
+    if category is not None:
+        kwargs["category"] = category
+    if source_name is not None:
+        kwargs["source_name"] = source_name
+    if unsent is not None:
+        kwargs["unsent"] = unsent
+    if limit is not None:
+        kwargs["limit"] = limit
+    return await client.get("/api/news/articles", **kwargs)
+
+
+@mcp.tool()
+async def check_article_exists(url: str) -> dict:
+    """Check if an article URL has already been saved (deduplication check).
+
+    Args:
+        url: The article URL to check.
+    """
+    return await client.get("/api/news/articles/exists", url=url)
+
+
+@mcp.tool()
+async def mark_article_in_digest(article_id: int, digest_date: str) -> dict:
+    """Mark an article as included in a digest.
+
+    Call this after including an article in a news digest delivery so it
+    won't appear in future unsent queries.
+
+    Args:
+        article_id: ID of the article.
+        digest_date: The date of the digest (YYYY-MM-DD format).
+    """
+    return await client.put(
+        f"/api/news/articles/{article_id}/digest",
+        {"digest_date": digest_date},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Data pipeline tools
 # ---------------------------------------------------------------------------
