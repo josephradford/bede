@@ -42,11 +42,21 @@ def test_save_article_duplicate_returns_existing(client):
 def test_list_articles(client):
     client.post(
         "/api/news/articles",
-        json={"url": "https://a.com", "title": "A", "source_name": "HN", "category": "tech"},
+        json={
+            "url": "https://a.com",
+            "title": "A",
+            "source_name": "HN",
+            "category": "tech",
+        },
     )
     client.post(
         "/api/news/articles",
-        json={"url": "https://b.com", "title": "B", "source_name": "HN", "category": "ai"},
+        json={
+            "url": "https://b.com",
+            "title": "B",
+            "source_name": "HN",
+            "category": "ai",
+        },
     )
 
     response = client.get("/api/news/articles")
@@ -56,11 +66,21 @@ def test_list_articles(client):
 def test_list_articles_filter_category(client):
     client.post(
         "/api/news/articles",
-        json={"url": "https://a.com", "title": "A", "source_name": "HN", "category": "tech"},
+        json={
+            "url": "https://a.com",
+            "title": "A",
+            "source_name": "HN",
+            "category": "tech",
+        },
     )
     client.post(
         "/api/news/articles",
-        json={"url": "https://b.com", "title": "B", "source_name": "HN", "category": "ai"},
+        json={
+            "url": "https://b.com",
+            "title": "B",
+            "source_name": "HN",
+            "category": "ai",
+        },
     )
 
     response = client.get("/api/news/articles", params={"category": "ai"})
@@ -72,11 +92,21 @@ def test_list_articles_filter_category(client):
 def test_list_articles_unsent_only(client):
     client.post(
         "/api/news/articles",
-        json={"url": "https://a.com", "title": "A", "source_name": "HN", "category": "tech"},
+        json={
+            "url": "https://a.com",
+            "title": "A",
+            "source_name": "HN",
+            "category": "tech",
+        },
     )
     resp = client.post(
         "/api/news/articles",
-        json={"url": "https://b.com", "title": "B", "source_name": "HN", "category": "tech"},
+        json={
+            "url": "https://b.com",
+            "title": "B",
+            "source_name": "HN",
+            "category": "tech",
+        },
     )
     article_id = resp.json()["id"]
     client.put(
@@ -93,7 +123,12 @@ def test_list_articles_unsent_only(client):
 def test_mark_article_in_digest(client):
     resp = client.post(
         "/api/news/articles",
-        json={"url": "https://a.com", "title": "A", "source_name": "HN", "category": "tech"},
+        json={
+            "url": "https://a.com",
+            "title": "A",
+            "source_name": "HN",
+            "category": "tech",
+        },
     )
     article_id = resp.json()["id"]
 
@@ -114,7 +149,12 @@ def test_check_article_exists(client):
 
     client.post(
         "/api/news/articles",
-        json={"url": "https://exists.com", "title": "X", "source_name": "HN", "category": "tech"},
+        json={
+            "url": "https://exists.com",
+            "title": "X",
+            "source_name": "HN",
+            "category": "tech",
+        },
     )
     response = client.get(
         "/api/news/articles/exists",

@@ -45,7 +45,9 @@ async def test_record_price_check_out_of_stock(api):
 
 async def test_record_price_check_with_notes(api):
     api.post.return_value = {"id": 3}
-    await record_price_check(5, "https://example.com/p", price=99.0, notes="sale ends Friday")
+    await record_price_check(
+        5, "https://example.com/p", price=99.0, notes="sale ends Friday"
+    )
     call_body = api.post.call_args[0][1]
     assert call_body["notes"] == "sale ends Friday"
 
@@ -71,7 +73,9 @@ async def test_get_price_history_with_limit(api):
 async def test_get_price_history_with_url_filter(api):
     api.get.return_value = {"checks": []}
     await get_price_history(5, url="https://example.com/p")
-    api.get.assert_called_once_with("/api/deals/price-history/5", url="https://example.com/p")
+    api.get.assert_called_once_with(
+        "/api/deals/price-history/5", url="https://example.com/p"
+    )
 
 
 async def test_report_dead_url(api):

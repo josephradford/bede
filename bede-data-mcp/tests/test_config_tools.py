@@ -161,7 +161,9 @@ async def test_update_monitored_item(api):
         "name": "updated name",
         "config": '{"items": ["tent"]}',
     }
-    result = await update_monitored_item(1, name="updated name", config='{"items": ["tent"]}')
+    result = await update_monitored_item(
+        1, name="updated name", config='{"items": ["tent"]}'
+    )
     api.put.assert_called_once_with(
         "/api/config/monitored-items/1",
         {"name": "updated name", "config": '{"items": ["tent"]}'},
@@ -172,6 +174,4 @@ async def test_update_monitored_item(api):
 async def test_update_monitored_item_enabled(api):
     api.put.return_value = {"id": 1, "enabled": False}
     await update_monitored_item(1, enabled=False)
-    api.put.assert_called_once_with(
-        "/api/config/monitored-items/1", {"enabled": False}
-    )
+    api.put.assert_called_once_with("/api/config/monitored-items/1", {"enabled": False})

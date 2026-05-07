@@ -111,7 +111,9 @@ def report_dead_url(body: DeadUrlReport, conn: sqlite3.Connection = Depends(get_
             (body.last_error, now, existing["id"]),
         )
         conn.commit()
-        return JSONResponse(content=_get_dead_url(conn, existing["id"]), status_code=200)
+        return JSONResponse(
+            content=_get_dead_url(conn, existing["id"]), status_code=200
+        )
 
     cursor = conn.execute(
         "INSERT INTO dead_urls (url, category, last_error, first_seen, checked_at) VALUES (?, ?, ?, ?, ?)",

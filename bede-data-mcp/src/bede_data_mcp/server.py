@@ -787,7 +787,9 @@ async def get_price_history(
 
 
 @mcp.tool()
-async def report_dead_url(url: str, category: str | None = None, error: str | None = None) -> dict:
+async def report_dead_url(
+    url: str, category: str | None = None, error: str | None = None
+) -> dict:
     """Report a URL that failed to load or returned an error.
 
     Call this when a product page returns 404, 403, redirects to a homepage,

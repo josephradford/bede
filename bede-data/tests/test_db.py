@@ -157,6 +157,7 @@ def test_articles_url_unique(db):
         "VALUES ('https://example.com/a', 'First', 'src', 'tech', '2026-05-07T00:00:00Z')"
     )
     import sqlite3 as _sqlite3
+
     try:
         db.execute(
             "INSERT INTO articles (url, title, source_name, category, fetched_at) "

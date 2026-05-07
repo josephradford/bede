@@ -15,7 +15,11 @@ async def test_save_article(api):
         "category": "ai",
     }
     result = await save_article(
-        "https://example.com/article", "AI News", "TLDR AI", category="ai", summary="Big things."
+        "https://example.com/article",
+        "AI News",
+        "TLDR AI",
+        category="ai",
+        summary="Big things.",
     )
     api.post.assert_called_once_with(
         "/api/news/articles",
@@ -61,7 +65,9 @@ async def test_list_articles_by_source(api):
 async def test_check_article_exists(api):
     api.get.return_value = {"exists": True, "url": "https://example.com"}
     result = await check_article_exists("https://example.com")
-    api.get.assert_called_once_with("/api/news/articles/exists", url="https://example.com")
+    api.get.assert_called_once_with(
+        "/api/news/articles/exists", url="https://example.com"
+    )
     assert result["exists"] is True
 
 
