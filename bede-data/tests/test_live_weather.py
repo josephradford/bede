@@ -46,21 +46,42 @@ async def test_fetch_air_quality():
         json=[
             {
                 "Site_Id": 919,
-                "Parameter": "PM2.5",
+                "Parameter": {
+                    "ParameterCode": "PM2.5",
+                    "ParameterDescription": "PM2.5",
+                    "Units": "µg/m³",
+                },
                 "Date": "2026-05-07",
                 "Hour": 14,
-                "HourDescription": "2pm",
+                "HourDescription": "1 pm - 2 pm",
                 "Value": 8.3,
-                "AirQualityCategory": "Good",
+                "AirQualityCategory": "GOOD",
             },
             {
                 "Site_Id": 919,
-                "Parameter": "PM10",
+                "Parameter": {
+                    "ParameterCode": "PM10",
+                    "ParameterDescription": "PM10",
+                    "Units": "µg/m³",
+                },
                 "Date": "2026-05-07",
                 "Hour": 14,
-                "HourDescription": "2pm",
+                "HourDescription": "1 pm - 2 pm",
                 "Value": 18.1,
-                "AirQualityCategory": "Good",
+                "AirQualityCategory": "GOOD",
+            },
+            {
+                "Site_Id": 919,
+                "Parameter": {
+                    "ParameterCode": "PM2.5",
+                    "ParameterDescription": "PM2.5",
+                    "Units": "µg/m³",
+                },
+                "Date": "2026-05-07",
+                "Hour": 15,
+                "HourDescription": "2 pm - 3 pm",
+                "Value": None,
+                "AirQualityCategory": None,
             },
         ],
         request=httpx.Request("POST", "http://test"),
@@ -82,6 +103,9 @@ async def test_fetch_air_quality():
         assert result["site_id"] == 919
         assert "PM2.5" in result["readings"]
         assert result["readings"]["PM2.5"]["value"] == 8.3
+        assert result["readings"]["PM2.5"]["units"] == "µg/m³"
+        # null-value rows should be skipped, so PM2.5 keeps hour 14 not 15
+        assert result["readings"]["PM2.5"]["hour"] == "1 pm - 2 pm"
 
 
 @pytest.mark.asyncio
@@ -93,12 +117,16 @@ async def test_fetch_air_quality_with_site_id():
         json=[
             {
                 "Site_Id": 1148,
-                "Parameter": "PM2.5",
+                "Parameter": {
+                    "ParameterCode": "PM2.5",
+                    "ParameterDescription": "PM2.5",
+                    "Units": "µg/m³",
+                },
                 "Date": "2026-05-07",
                 "Hour": 14,
-                "HourDescription": "2pm",
+                "HourDescription": "1 pm - 2 pm",
                 "Value": 12.0,
-                "AirQualityCategory": "Fair",
+                "AirQualityCategory": "FAIR",
             },
         ],
         request=httpx.Request("POST", "http://test"),
