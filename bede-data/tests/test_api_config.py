@@ -96,6 +96,45 @@ def test_delete_monitored_item(client):
     assert len(client.get("/api/config/monitored-items").json()["items"]) == 0
 
 
+def test_update_monitored_item(client):
+    resp = client.post(
+        "/api/config/monitored-items",
+        json={"category": "deal", "name": "Camping Gear", "config": '{"items": []}'},
+    )
+    item_id = resp.json()["id"]
+
+    response = client.put(
+        f"/api/config/monitored-items/{item_id}",
+        json={"config": '{"items": ["tent"]}'},
+    )
+    assert response.status_code == 200
+    assert json.loads(response.json()["config"]) == {"items": ["tent"]}
+    assert response.json()["name"] == "Camping Gear"
+
+
+def test_update_monitored_item_name(client):
+    resp = client.post(
+        "/api/config/monitored-items",
+        json={"category": "deal", "name": "Old Name", "config": "{}"},
+    )
+    item_id = resp.json()["id"]
+
+    response = client.put(
+        f"/api/config/monitored-items/{item_id}",
+        json={"name": "New Name"},
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "New Name"
+
+
+def test_update_monitored_item_not_found(client):
+    response = client.put(
+        "/api/config/monitored-items/999",
+        json={"name": "X"},
+    )
+    assert response.status_code == 404
+
+
 class TestScheduleTaskConfig:
     def test_create_schedule_with_task_config(self, client):
         config = {

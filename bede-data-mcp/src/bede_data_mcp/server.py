@@ -698,6 +698,31 @@ async def delete_monitored_item(item_id: int) -> dict:
     return await client.delete(f"/api/config/monitored-items/{item_id}")
 
 
+@mcp.tool()
+async def update_monitored_item(
+    item_id: int,
+    name: str | None = None,
+    config: str | None = None,
+    enabled: bool | None = None,
+) -> dict:
+    """Update a monitored item's name, config, or enabled status.
+
+    Args:
+        item_id: ID of the item to update.
+        name: New human-readable name.
+        config: New JSON config string.
+        enabled: Set enabled/disabled.
+    """
+    body: dict = {}
+    if name is not None:
+        body["name"] = name
+    if config is not None:
+        body["config"] = config
+    if enabled is not None:
+        body["enabled"] = enabled
+    return await client.put(f"/api/config/monitored-items/{item_id}", body)
+
+
 # ---------------------------------------------------------------------------
 # Data pipeline tools
 # ---------------------------------------------------------------------------

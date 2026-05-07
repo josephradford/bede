@@ -7,6 +7,7 @@ from bede_data_mcp.server import (
     list_schedules,
     list_settings,
     set_setting,
+    update_monitored_item,
     update_schedule,
 )
 
@@ -151,3 +152,26 @@ async def test_delete_monitored_item(api):
     result = await delete_monitored_item(1)
     api.delete.assert_called_once_with("/api/config/monitored-items/1")
     assert result["status"] == "deleted"
+
+
+async def test_update_monitored_item(api):
+    api.put.return_value = {
+        "id": 1,
+        "category": "deals",
+        "name": "updated name",
+        "config": '{"items": ["tent"]}',
+    }
+    result = await update_monitored_item(1, name="updated name", config='{"items": ["tent"]}')
+    api.put.assert_called_once_with(
+        "/api/config/monitored-items/1",
+        {"name": "updated name", "config": '{"items": ["tent"]}'},
+    )
+    assert result["name"] == "updated name"
+
+
+async def test_update_monitored_item_enabled(api):
+    api.put.return_value = {"id": 1, "enabled": False}
+    await update_monitored_item(1, enabled=False)
+    api.put.assert_called_once_with(
+        "/api/config/monitored-items/1", {"enabled": False}
+    )
