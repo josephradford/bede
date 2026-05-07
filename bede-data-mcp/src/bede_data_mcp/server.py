@@ -724,6 +724,127 @@ async def update_monitored_item(
 
 
 # ---------------------------------------------------------------------------
+# Deal monitoring tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def record_price_check(
+    monitored_item_id: int,
+    url: str,
+    price: float | None = None,
+    currency: str | None = None,
+    in_stock: bool | None = None,
+    notes: str | None = None,
+) -> dict:
+    """Record a price check observation after scraping a retailer page.
+
+    Call this after visiting a product URL to persist the price and stock status.
+    The system tracks history so price drops and restocks can be detected.
+
+    Args:
+        monitored_item_id: ID of the monitored item this check belongs to.
+        url: The product page URL that was checked.
+        price: The observed price (omit if product page doesn't show a price).
+        currency: Currency code (e.g. 'AUD', 'USD'). Omit to use the API default (AUD).
+        in_stock: Whether the product is currently in stock.
+        notes: Optional notes (e.g. 'sale ends Friday', 'clearance').
+    """
+    body: dict = {"monitored_item_id": monitored_item_id, "url": url}
+    if price is not None:
+        body["price"] = price
+    if currency is not None:
+        body["currency"] = currency
+    if in_stock is not None:
+        body["in_stock"] = in_stock
+    if notes is not None:
+        body["notes"] = notes
+    return await client.post("/api/deals/price-checks", body)
+
+
+@mcp.tool()
+async def get_price_history(
+    monitored_item_id: int,
+    limit: int | None = None,
+    url: str | None = None,
+) -> dict:
+    """Get price check history for a monitored item.
+
+    Returns checks in reverse chronological order. Compare the most recent
+    check against previous ones to detect price drops or restocks.
+
+    Args:
+        monitored_item_id: ID of the monitored item.
+        limit: Max number of checks to return (default 50).
+        url: Filter to a specific product URL.
+    """
+    kwargs: dict = {}
+    if limit is not None:
+        kwargs["limit"] = limit
+    if url is not None:
+        kwargs["url"] = url
+    return await client.get(f"/api/deals/price-history/{monitored_item_id}", **kwargs)
+
+
+@mcp.tool()
+async def report_dead_url(url: str, category: str | None = None, error: str | None = None) -> dict:
+    """Report a URL that failed to load or returned an error.
+
+    Call this when a product page returns 404, 403, redirects to a homepage,
+    or otherwise fails. The system tracks failure counts — URLs with repeated
+    failures can be skipped in future checks.
+
+    Args:
+        url: The URL that failed.
+        category: Category for grouping (e.g. 'deal', 'news').
+        error: Description of the failure (e.g. '404 Not Found', 'redirect to homepage').
+    """
+    body: dict = {"url": url}
+    if category is not None:
+        body["category"] = category
+    if error is not None:
+        body["last_error"] = error
+    return await client.post("/api/deals/dead-urls", body)
+
+
+@mcp.tool()
+async def list_dead_urls(category: str | None = None) -> dict:
+    """List known dead URLs to skip during scraping.
+
+    Check this before attempting to scrape — URLs in this list have
+    previously failed and may waste time.
+
+    Args:
+        category: Filter by category (e.g. 'deal', 'news').
+    """
+    kwargs: dict = {}
+    if category is not None:
+        kwargs["category"] = category
+    return await client.get("/api/deals/dead-urls", **kwargs)
+
+
+@mcp.tool()
+async def update_dead_url(
+    url_id: int,
+    disabled: bool | None = None,
+    last_error: str | None = None,
+) -> dict:
+    """Update a dead URL entry (e.g. to disable it permanently).
+
+    Args:
+        url_id: ID of the dead URL entry.
+        disabled: Set to true to permanently skip this URL.
+        last_error: Update the error description.
+    """
+    body: dict = {}
+    if disabled is not None:
+        body["disabled"] = disabled
+    if last_error is not None:
+        body["last_error"] = last_error
+    return await client.put(f"/api/deals/dead-urls/{url_id}", body)
+
+
+# ---------------------------------------------------------------------------
 # Data pipeline tools
 # ---------------------------------------------------------------------------
 
