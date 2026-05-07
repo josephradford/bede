@@ -1,6 +1,6 @@
 # Bede Architecture
 
-Three independent Docker services — brain, data layer, and MCP proxy — deployed as prebuilt GHCR images via the home-server-stack `docker-compose.ai.yml`.
+Five Docker services — brain, data layer, MCP proxies, and dashboard — deployed as prebuilt GHCR images via the home-server-stack `docker-compose.ai.yml`.
 
 ## Table of Contents
 - [Service Overview](#service-overview)
@@ -30,6 +30,14 @@ graph TB
         FastMCP server
         MCP tool proxy
         :8002"]
+
+        WMCP["bede-workspace-mcp
+        Google Workspace MCP
+        :8003"]
+
+        Web["bede-web
+        Dashboard UI
+        :8080"]
     end
 
     subgraph External["External Services"]
@@ -42,6 +50,8 @@ graph TB
         :5000"]
         Nominatim["Nominatim
         Reverse geocoding"]
+        Google["Google Workspace
+        Gmail, Calendar, etc."]
     end
 
     subgraph Mac["Mac (launchd agents)"]
@@ -59,9 +69,12 @@ graph TB
     Core --> Telegram
     Core -- "claude -p" --> Claude
     Claude -- "MCP protocol" --> MCP
+    Claude -- "MCP protocol" --> WMCP
     Core -- "HTTP API" --> Data
 
     MCP -- "HTTP proxy" --> Data
+    WMCP --> Google
+    Web -- "API proxy" --> Data
 
     Data -- "live location" --> OwnTracks
     Data -- "live weather" --> HomepageAPI
@@ -80,8 +93,9 @@ graph TB
 
     class Core core
     class Data data
-    class MCP mcp
-    class Telegram,Claude,OwnTracks,HomepageAPI,Nominatim external
+    class MCP,WMCP mcp
+    class Web data
+    class Telegram,Claude,OwnTracks,HomepageAPI,Nominatim,Google external
 ```
 
 ---
@@ -221,6 +235,18 @@ Thin MCP proxy. Translates Claude's MCP tool calls into bede-data HTTP API reque
 
 Built with FastMCP. Runs as a Streamable HTTP MCP server on port 8002.
 
+### bede-workspace-mcp
+
+Google Workspace MCP sidecar. Wraps the `workspace-mcp` PyPI package to give Claude access to Gmail, Google Calendar, Google Tasks, Docs, Sheets, Slides, and Drive via MCP tools.
+
+OAuth callback exposed at `mcp.DOMAIN/oauth2callback` via Traefik (admin-secure, no rate limit). Credentials stored in `.env`.
+
+### bede-web
+
+Read-only operational dashboard. Static files served by nginx with an API proxy to bede-data. Displays data freshness, task status, storage usage, schedule, memories, goals, and conversation history.
+
+Accessible at `bede.DOMAIN` behind admin-secure middleware (IP whitelist + security headers).
+
 ---
 
 ## External Dependencies
@@ -240,6 +266,8 @@ graph LR
         (subscription via CLI)"]
         NM["Nominatim
         OpenStreetMap geocoding"]
+        GW["Google Workspace
+        Gmail, Calendar, etc."]
         GH["GitHub
         Vault repo"]
     end
@@ -251,18 +279,20 @@ graph LR
     Data["bede-data"] --> OT
     Data --> HA
     Data --> NM
+    WMCP["bede-workspace-mcp"] --> GW
 
     classDef stack fill:#4dabf7,stroke:#1971c2,stroke-width:2px,color:#fff
     classDef internet fill:#868e96,stroke:#495057,stroke-width:2px,color:#fff
 
     class OT,HA stack
-    class TG,CL,NM,GH internet
+    class TG,CL,NM,GH,GW internet
 ```
 
 | Dependency | Used by | Purpose |
 |-----------|---------|---------|
 | Telegram Bot API | bede-core | Receive and send messages |
 | Claude API (CLI) | bede-core | LLM inference via subscription |
+| Google Workspace | bede-workspace-mcp | Gmail, Calendar, Tasks, Docs, Sheets, Slides, Drive |
 | owntracks-recorder | bede-data | Live GPS location queries |
 | homepage-api | bede-data | BOM weather and air quality |
 | Nominatim | bede-data | Reverse geocoding GPS → place names |
@@ -298,5 +328,7 @@ All three services run on the `homeserver` Docker network. bede-data also joins 
 | bede-core | 8080 | Internal only (health check) |
 | bede-data | 8001 | Traefik → `data.DOMAIN` (ingest endpoints, webhook-secure middleware) |
 | bede-data-mcp | 8002 | Internal only (MCP protocol, consumed by Claude CLI in bede-core) |
+| bede-workspace-mcp | 8003 | Internal MCP + Traefik → `mcp.DOMAIN` (OAuth callback only) |
+| bede-web | 8080 | Traefik → `bede.DOMAIN` (admin-secure middleware) |
 
 bede-core makes outbound connections only (Telegram, Claude API). It has no inbound routes via Traefik.
