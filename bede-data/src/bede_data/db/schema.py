@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 # Tables whose column names changed from the prototype bede schema.
 # init_db drops these if they have old-style columns, then SCHEMA_SQL recreates them.
@@ -301,5 +301,27 @@ CREATE TABLE IF NOT EXISTS geocode_cache (
     place_name  TEXT NOT NULL,
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (lat_round, lon_round)
+);
+
+CREATE TABLE IF NOT EXISTS price_history (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    monitored_item_id INTEGER NOT NULL REFERENCES monitored_items(id),
+    url               TEXT NOT NULL,
+    price             REAL,
+    currency          TEXT NOT NULL DEFAULT 'AUD',
+    in_stock          INTEGER,
+    notes             TEXT,
+    checked_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS dead_urls (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    url          TEXT NOT NULL UNIQUE,
+    category     TEXT,
+    fail_count   INTEGER NOT NULL DEFAULT 1,
+    last_error   TEXT,
+    first_seen   TEXT NOT NULL DEFAULT (datetime('now')),
+    checked_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    disabled     INTEGER NOT NULL DEFAULT 0
 );
 """
