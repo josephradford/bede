@@ -19,6 +19,8 @@ _CATEGORY_RANKS = {
 
 async def fetch_air_quality(site_id: str | None = None) -> dict:
     resolved_site = int(site_id) if site_id else settings.air_quality_site_id
+    if not resolved_site:
+        return {"error": "AIR_QUALITY_SITE_ID not configured"}
     tz = ZoneInfo(settings.timezone)
     now = datetime.now(tz)
     start = (now - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S")
@@ -46,7 +48,11 @@ async def fetch_air_quality(site_id: str | None = None) -> dict:
         if not param:
             continue
         key = (obs.get("Date", ""), obs.get("Hour", 0))
-        prev_key = (latest[param].get("Date", ""), latest[param].get("Hour", 0)) if param in latest else ("", -1)
+        prev_key = (
+            (latest[param].get("Date", ""), latest[param].get("Hour", 0))
+            if param in latest
+            else ("", -1)
+        )
         if key > prev_key:
             latest[param] = obs
 
@@ -59,7 +65,10 @@ async def fetch_air_quality(site_id: str | None = None) -> dict:
             "hour": obs.get("HourDescription"),
         }
         cat = obs.get("AirQualityCategory")
-        if cat and (worst_category is None or _CATEGORY_RANKS.get(cat, -1) > _CATEGORY_RANKS.get(worst_category, -1)):
+        if cat and (
+            worst_category is None
+            or _CATEGORY_RANKS.get(cat, -1) > _CATEGORY_RANKS.get(worst_category, -1)
+        ):
             worst_category = cat
 
     return {

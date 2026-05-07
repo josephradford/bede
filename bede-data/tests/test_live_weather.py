@@ -28,6 +28,16 @@ async def test_fetch_weather():
 
 
 @pytest.mark.asyncio
+async def test_fetch_air_quality_not_configured():
+    from bede_data.live.air_quality import fetch_air_quality
+
+    with patch("bede_data.live.air_quality.settings") as mock_settings:
+        mock_settings.air_quality_site_id = 0
+        result = await fetch_air_quality()
+        assert "error" in result
+
+
+@pytest.mark.asyncio
 async def test_fetch_air_quality():
     from bede_data.live.air_quality import fetch_air_quality
 
@@ -55,7 +65,12 @@ async def test_fetch_air_quality():
         ],
         request=httpx.Request("POST", "http://test"),
     )
-    with patch("bede_data.live.air_quality.httpx.AsyncClient") as mock_client_cls:
+    with (
+        patch("bede_data.live.air_quality.settings") as mock_settings,
+        patch("bede_data.live.air_quality.httpx.AsyncClient") as mock_client_cls,
+    ):
+        mock_settings.air_quality_site_id = 919
+        mock_settings.timezone = "Australia/Sydney"
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=mock_response)
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
