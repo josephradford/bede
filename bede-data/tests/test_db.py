@@ -38,6 +38,7 @@ def test_schema_creates_all_tables(db):
         "retention_policies",
         "price_history",
         "dead_urls",
+        "articles",
     }
     assert expected.issubset(tables), f"Missing tables: {expected - tables}"
 
@@ -50,7 +51,7 @@ def test_wal_mode_enabled(db):
 def test_schema_version_is_set(db):
     cursor = db.execute("SELECT MAX(version) FROM schema_version")
     version = cursor.fetchone()[0]
-    assert version == 9
+    assert version == 10
 
 
 def test_health_metrics_upsert_by_natural_key(db):
@@ -138,3 +139,29 @@ def test_dead_urls_table_exists(db):
     row = db.execute("SELECT * FROM dead_urls WHERE id = 1").fetchone()
     assert row is not None
     assert row["fail_count"] == 1
+
+
+def test_articles_table_exists(db):
+    db.execute(
+        "INSERT INTO articles (url, title, source_name, category, summary, fetched_at) "
+        "VALUES ('https://example.com/article', 'Test Article', 'Hacker News', 'tech', 'Summary text', '2026-05-07T00:00:00Z')"
+    )
+    row = db.execute("SELECT * FROM articles WHERE id = 1").fetchone()
+    assert row is not None
+    assert row["title"] == "Test Article"
+
+
+def test_articles_url_unique(db):
+    db.execute(
+        "INSERT INTO articles (url, title, source_name, category, fetched_at) "
+        "VALUES ('https://example.com/a', 'First', 'src', 'tech', '2026-05-07T00:00:00Z')"
+    )
+    import sqlite3 as _sqlite3
+    try:
+        db.execute(
+            "INSERT INTO articles (url, title, source_name, category, fetched_at) "
+            "VALUES ('https://example.com/a', 'Duplicate', 'src', 'tech', '2026-05-07T01:00:00Z')"
+        )
+        assert False, "Should have raised IntegrityError"
+    except _sqlite3.IntegrityError:
+        pass

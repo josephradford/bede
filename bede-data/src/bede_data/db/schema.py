@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 # Tables whose column names changed from the prototype bede schema.
 # init_db drops these if they have old-style columns, then SCHEMA_SQL recreates them.
@@ -323,6 +323,17 @@ CREATE TABLE IF NOT EXISTS dead_urls (
     first_seen   TEXT NOT NULL DEFAULT (datetime('now')),
     checked_at   TEXT NOT NULL DEFAULT (datetime('now')),
     disabled     INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS articles (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    url              TEXT NOT NULL UNIQUE,
+    title            TEXT NOT NULL,
+    source_name      TEXT NOT NULL,
+    category         TEXT,
+    summary          TEXT,
+    fetched_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    digest_date      TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_price_history_item ON price_history(monitored_item_id, checked_at);
