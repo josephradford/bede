@@ -845,6 +845,97 @@ async def update_dead_url(
 
 
 # ---------------------------------------------------------------------------
+# News curation tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def save_article(
+    url: str,
+    title: str,
+    source_name: str,
+    category: str | None = None,
+    summary: str | None = None,
+) -> dict:
+    """Save an article found during news curation.
+
+    Handles deduplication by URL — if the article already exists, returns
+    the existing record with already_existed=true instead of creating a
+    duplicate.
+
+    Args:
+        url: The article URL (used as dedup key).
+        title: Article headline.
+        source_name: Where it was found (e.g. 'Hacker News', 'TLDR AI').
+        category: Topic category (e.g. 'ai', 'public_sector', 'platform_tech').
+        summary: Brief summary of the article content.
+    """
+    body: dict = {"url": url, "title": title, "source_name": source_name}
+    if category is not None:
+        body["category"] = category
+    if summary is not None:
+        body["summary"] = summary
+    return await client.post("/api/news/articles", body)
+
+
+@mcp.tool()
+async def list_articles(
+    category: str | None = None,
+    source_name: str | None = None,
+    unsent: bool | None = None,
+    limit: int | None = None,
+) -> dict:
+    """List saved articles, optionally filtered.
+
+    Use unsent=true to get articles not yet included in any digest — this
+    is the primary query for building a news digest.
+
+    Args:
+        category: Filter by topic category.
+        source_name: Filter by source name.
+        unsent: If true, only return articles not yet in a digest.
+        limit: Max articles to return (default 50).
+    """
+    kwargs: dict = {}
+    if category is not None:
+        kwargs["category"] = category
+    if source_name is not None:
+        kwargs["source_name"] = source_name
+    if unsent is not None:
+        kwargs["unsent"] = unsent
+    if limit is not None:
+        kwargs["limit"] = limit
+    return await client.get("/api/news/articles", **kwargs)
+
+
+@mcp.tool()
+async def check_article_exists(url: str) -> dict:
+    """Check if an article URL has already been saved (deduplication check).
+
+    Args:
+        url: The article URL to check.
+    """
+    return await client.get("/api/news/articles/exists", url=url)
+
+
+@mcp.tool()
+async def mark_article_in_digest(article_id: int, digest_date: str) -> dict:
+    """Mark an article as included in a digest.
+
+    Call this after including an article in a news digest delivery so it
+    won't appear in future unsent queries.
+
+    Args:
+        article_id: ID of the article.
+        digest_date: The date of the digest (YYYY-MM-DD format).
+    """
+    return await client.put(
+        f"/api/news/articles/{article_id}/digest",
+        {"digest_date": digest_date},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Data pipeline tools
 # ---------------------------------------------------------------------------
 
