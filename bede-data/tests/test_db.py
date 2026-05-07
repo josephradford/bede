@@ -119,6 +119,9 @@ def test_prototype_schema_not_detected_for_new_tables(db):
 
 def test_price_history_table_exists(db):
     db.execute(
+        "INSERT INTO monitored_items (category, name, config) VALUES ('deal', 'Test', '{}')"
+    )
+    db.execute(
         "INSERT INTO price_history (monitored_item_id, url, price, currency, in_stock, checked_at) "
         "VALUES (1, 'https://example.com', 99.95, 'AUD', 1, '2026-05-07T00:00:00Z')"
     )

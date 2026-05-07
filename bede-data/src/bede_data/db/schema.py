@@ -324,4 +324,6 @@ CREATE TABLE IF NOT EXISTS dead_urls (
     checked_at   TEXT NOT NULL DEFAULT (datetime('now')),
     disabled     INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE INDEX IF NOT EXISTS idx_price_history_item ON price_history(monitored_item_id, checked_at);
 """
