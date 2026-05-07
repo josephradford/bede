@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from bede_data.api.analytics import router as analytics_router
 from bede_data.api.conversations import router as conversations_router
 from bede_data.api.deals import router as deals_router
+from bede_data.api.news import router as news_router
 from bede_data.api.message_queue import router as message_queue_router
 from bede_data.api.config_api import router as config_router
 from bede_data.api.freshness import router as freshness_router
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(conversations_router)
     app.include_router(message_queue_router)
     app.include_router(deals_router)
+    app.include_router(news_router)
 
     @app.get("/health")
     def health_check(conn: sqlite3.Connection = Depends(get_db)):
