@@ -2,6 +2,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from bede_data.db.connection import get_db
@@ -76,7 +77,7 @@ def _get_price_check(conn: sqlite3.Connection, check_id: int) -> dict:
     )
     row = cursor.fetchone()
     if not row:
-        return {}
+        return None
     r = dict(row)
     if r["in_stock"] is not None:
         r["in_stock"] = bool(r["in_stock"])
@@ -110,7 +111,7 @@ def report_dead_url(body: DeadUrlReport, conn: sqlite3.Connection = Depends(get_
             (body.last_error, now, existing["id"]),
         )
         conn.commit()
-        return _get_dead_url(conn, existing["id"])
+        return JSONResponse(content=_get_dead_url(conn, existing["id"]), status_code=200)
 
     cursor = conn.execute(
         "INSERT INTO dead_urls (url, category, last_error, first_seen, checked_at) VALUES (?, ?, ?, ?, ?)",
@@ -146,11 +147,14 @@ def update_dead_url(
     if not existing:
         raise HTTPException(status_code=404, detail="Dead URL not found")
 
-    updates: dict = {"checked_at": _now()}
+    updates: dict = {}
     if body.disabled is not None:
         updates["disabled"] = int(body.disabled)
     if body.last_error is not None:
         updates["last_error"] = body.last_error
+
+    if not updates:
+        return _get_dead_url(conn, url_id)
 
     set_clause = ", ".join(f"{k} = ?" for k in updates)
     conn.execute(
@@ -168,7 +172,7 @@ def _get_dead_url(conn: sqlite3.Connection, url_id: int) -> dict:
     )
     row = cursor.fetchone()
     if not row:
-        return {}
+        return None
     r = dict(row)
     r["disabled"] = bool(r["disabled"])
     return r

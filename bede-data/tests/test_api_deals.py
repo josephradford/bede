@@ -1,6 +1,3 @@
-import json
-
-
 def test_record_price_check(client):
     item = client.post(
         "/api/config/monitored-items",
@@ -111,7 +108,7 @@ def test_report_dead_url(client):
 
 
 def test_report_dead_url_increments_fail_count(client):
-    for _ in range(3):
+    for _ in range(2):
         client.post(
             "/api/deals/dead-urls",
             json={
@@ -121,10 +118,19 @@ def test_report_dead_url_increments_fail_count(client):
             },
         )
 
-    response = client.get("/api/deals/dead-urls")
-    urls = response.json()["urls"]
-    assert len(urls) == 1
-    assert urls[0]["fail_count"] == 3
+    response = client.post(
+        "/api/deals/dead-urls",
+        json={
+            "url": "https://broken.example.com",
+            "category": "deal",
+            "last_error": "timeout",
+        },
+    )
+    assert response.status_code == 200  # update, not create
+
+    all_urls = client.get("/api/deals/dead-urls").json()["urls"]
+    assert len(all_urls) == 1
+    assert all_urls[0]["fail_count"] == 3
 
 
 def test_list_dead_urls(client):
