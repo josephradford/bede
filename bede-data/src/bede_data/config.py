@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     homepage_api_url: str = "http://homepage-api:5000"
     nominatim_url: str = "https://nominatim.openstreetmap.org/reverse"
     bom_location: str = ""
+    air_quality_site_id: int = 0
     claude_sessions_dir: str = "/data/bede/claude-sessions"
     host: str = "0.0.0.0"
     port: int = 8001
