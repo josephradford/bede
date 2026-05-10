@@ -165,7 +165,7 @@ async def get_medications(date: str, timezone: str = "Australia/Sydney") -> dict
 
 
 # ---------------------------------------------------------------------------
-# Vault data tools
+# Usage data tools
 # ---------------------------------------------------------------------------
 
 
@@ -189,7 +189,7 @@ async def get_screen_time(
         kwargs["device"] = device
     if top_n is not None:
         kwargs["top_n"] = top_n
-    return await client.get("/api/vault/screen-time", **kwargs)
+    return await client.get("/api/usage/screen-time", **kwargs)
 
 
 @mcp.tool()
@@ -216,7 +216,7 @@ async def get_safari_history(
         kwargs["domain"] = domain_filter
     if top_n is not None:
         kwargs["top_n"] = top_n
-    return await client.get("/api/vault/safari", **kwargs)
+    return await client.get("/api/usage/safari", **kwargs)
 
 
 @mcp.tool()
@@ -227,7 +227,7 @@ async def get_youtube_history(date: str, timezone: str = "Australia/Sydney") -> 
         date: Local date -- 'YYYY-MM-DD', 'today', or 'yesterday'.
         timezone: Olson timezone name.
     """
-    return await client.get("/api/vault/youtube", date=date, timezone=timezone)
+    return await client.get("/api/usage/youtube", date=date, timezone=timezone)
 
 
 @mcp.tool()
@@ -242,7 +242,7 @@ async def get_podcasts(date: str, timezone: str = "Australia/Sydney") -> dict:
         date: Local date -- 'YYYY-MM-DD', 'today', or 'yesterday'.
         timezone: Olson timezone name.
     """
-    return await client.get("/api/vault/podcasts", date=date, timezone=timezone)
+    return await client.get("/api/usage/podcasts", date=date, timezone=timezone)
 
 
 @mcp.tool()
@@ -253,7 +253,7 @@ async def get_claude_sessions(date: str, timezone: str = "Australia/Sydney") -> 
         date: Local date -- 'YYYY-MM-DD', 'today', or 'yesterday'.
         timezone: Olson timezone name.
     """
-    return await client.get("/api/vault/claude-sessions", date=date, timezone=timezone)
+    return await client.get("/api/usage/claude-sessions", date=date, timezone=timezone)
 
 
 @mcp.tool()
@@ -264,7 +264,7 @@ async def get_bede_sessions(date: str, timezone: str = "Australia/Sydney") -> di
         date: Local date -- 'YYYY-MM-DD', 'today', or 'yesterday'.
         timezone: Olson timezone name.
     """
-    return await client.get("/api/vault/bede-sessions", date=date, timezone=timezone)
+    return await client.get("/api/usage/bede-sessions", date=date, timezone=timezone)
 
 
 # ---------------------------------------------------------------------------
