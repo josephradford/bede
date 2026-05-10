@@ -59,3 +59,49 @@ def test_health_ingest_updates_granular_freshness(client, db):
     assert sources["health_metrics"]["expected_interval_seconds"] == 1800
     assert sources["health_metrics"]["always_expected"] == 1
     assert "health" not in sources
+
+
+def test_freshness_includes_always_expected_field(client, db):
+    db.execute(
+        "INSERT INTO data_freshness (source, last_received_at, expected_interval_seconds, always_expected) VALUES (?, ?, ?, ?)",
+        ("youtube_history", "2026-05-10T08:00:00Z", 10800, 0),
+    )
+    db.commit()
+
+    response = client.get("/api/freshness")
+    sources = response.json()["sources"]
+    assert len(sources) == 1
+    assert sources[0]["always_expected"] == 0
+
+
+def test_freshness_includes_owntracks(client, db, monkeypatch):
+    import httpx
+
+    mock_response = httpx.Response(
+        200,
+        json=[{"tst": 1715320500, "_type": "location"}],
+    )
+    monkeypatch.setattr(
+        "httpx.get", lambda *args, **kwargs: mock_response
+    )
+
+    response = client.get("/api/freshness")
+    sources = {s["source"]: s for s in response.json()["sources"]}
+    assert "owntracks" in sources
+    assert sources["owntracks"]["expected_interval_seconds"] == 3600
+    assert sources["owntracks"]["always_expected"] == 1
+    assert sources["owntracks"]["updated_at"] is None
+
+
+def test_freshness_omits_owntracks_when_recorder_unreachable(client, db, monkeypatch):
+    import httpx
+
+    def raise_error(*args, **kwargs):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr("httpx.get", raise_error)
+
+    response = client.get("/api/freshness")
+    assert response.status_code == 200
+    sources = [s["source"] for s in response.json()["sources"]]
+    assert "owntracks" not in sources
