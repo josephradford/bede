@@ -104,7 +104,20 @@ All tools handle timezone conversion internally — pass local dates, never UTC.
 **Config tools:**
 - `list_schedules()` / `create_schedule(...)` / `update_schedule(...)` — manage scheduled tasks
 - `list_settings()` / `get_setting(key)` / `set_setting(key, value)` — manage settings
-- `list_monitored_items(category?)` / `create_monitored_item(...)` / `delete_monitored_item(id)` — manage deal/news monitoring
+- `list_monitored_items(category?)` / `create_monitored_item(...)` / `update_monitored_item(item_id, name?, config?, enabled?)` / `delete_monitored_item(id)` — manage deal/news/event monitoring config
+
+**Deal monitoring tools:**
+- `record_price_check(monitored_item_id, url, price?, currency?, in_stock?, notes?)` — save a price/stock observation after scraping a retailer page
+- `get_price_history(monitored_item_id, limit?, url?)` — query past price checks to detect drops and restocks
+- `report_dead_url(url, category?, error?)` — report a URL that failed (404, redirect, timeout)
+- `list_dead_urls(category?)` — get known dead URLs to skip during scraping
+- `update_dead_url(url_id, disabled?, last_error?)` — disable a dead URL permanently
+
+**News curation tools:**
+- `save_article(url, title, source_name, category?, summary?)` — save a curated article (deduplicates by URL)
+- `list_articles(category?, source_name?, unsent?, limit?)` — query saved articles; use `unsent=true` to build a digest
+- `check_article_exists(url)` — dedup check before saving
+- `mark_article_in_digest(article_id, digest_date)` — mark an article as included in a digest
 
 **Data pipeline tools:**
 - `get_data_freshness()` — check when each data source last received data

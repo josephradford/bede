@@ -134,6 +134,8 @@ flowchart TD
         /api/goals
         /api/analytics/*
         /api/config/*
+        /api/deals/*
+        /api/news/*
         /api/conversations
         /api/vault-queue"]
         sqlite[("SQLite
@@ -145,11 +147,12 @@ flowchart TD
     end
 
     subgraph mcp["bede-data-mcp :8002"]
-        tools["40+ MCP tools
+        tools["50+ MCP tools
         time, health, vault,
         location, weather,
         memories, goals,
-        analytics, config"]
+        analytics, config,
+        deals, news"]
     end
 
     subgraph mac["Data sources (Mac)"]
@@ -218,7 +221,7 @@ The data layer. FastAPI service handling ingest, storage, querying, and live dat
 | Module | Purpose |
 |--------|---------|
 | `ingest/` | Token-authenticated endpoints for health and vault data ingestion |
-| `api/` | Query routers: health, vault, location, weather, memories, goals, analytics, config, sessions, conversations, vault-queue, freshness, storage, retention |
+| `api/` | Query routers: health, vault, location, weather, memories, goals, analytics, config, deals, news, sessions, conversations, vault-queue, freshness, storage, retention |
 | `db/` | SQLite connection management and schema migrations |
 | `live/` | Real-time proxies: OwnTracks location (with reverse geocode caching), Homepage API weather, air quality |
 | `analytics/` | Signal engine computing wellbeing flags from raw data |
@@ -231,7 +234,7 @@ The data layer. FastAPI service handling ingest, storage, querying, and live dat
 
 Thin MCP proxy. Translates Claude's MCP tool calls into bede-data HTTP API requests. No business logic — just parameter mapping.
 
-40+ tools across: time, health, vault data, location, weather, memories, goals, analytics, config/schedules, conversations, task history, vault publish queue.
+50+ tools across: time, health, vault data, location, weather, memories, goals, analytics, config/schedules, deal monitoring (price checks, price history, dead URLs), news curation (articles, digest tracking), conversations, task history, vault publish queue.
 
 Built with FastMCP. Runs as a Streamable HTTP MCP server on port 8002.
 
@@ -313,7 +316,7 @@ All persistent data lives in `./data/bede/` on the home server host, bind-mounte
 └── CLAUDE.md            ← bede-core: persona file (bind-mounted read-only)
 ```
 
-**SQLite is the single source of truth** for all structured data. Health metrics, vault exports, memories, goals, conversation history, scheduled task config, and analytics flags all live in `bede.db`. Schema migrations are applied on startup via `bede_data.db.schema`.
+**SQLite is the single source of truth** for all structured data. Health metrics, vault exports, memories, goals, conversation history, scheduled task config, deal monitoring data (price history, dead URLs), news articles, monitored item configs, and analytics flags all live in `bede.db`. Schema migrations are applied on startup via `bede_data.db.schema`.
 
 The Obsidian vault is a git clone pulled before each Claude invocation. Bede reads vault files during task execution for context (persona, preferences, journal entries). Scheduled task definitions are stored in the `schedules` SQLite table and managed via `/api/config/schedules`. The vault publish queue (via `/api/vault-queue`) stages content for writing back to the vault.
 
