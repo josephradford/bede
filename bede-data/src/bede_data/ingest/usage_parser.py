@@ -145,8 +145,8 @@ def _parse_sessions(date: str, content: str, name_field: str) -> list[dict]:
 SCREEN_TIME_FILES = {"screentime.csv", "iphone-screentime.csv"}
 
 
-def parse_vault_payload(payload: dict) -> dict:
-    """Parse a vault ingest payload containing {date, files: {filename: content}}. Files are routed by filename prefix to the appropriate CSV or markdown parser."""
+def parse_usage_payload(payload: dict) -> dict:
+    """Parse a usage ingest payload containing {date, files: {filename: content}}. Files are routed by filename prefix to the appropriate CSV or markdown parser."""
     date = payload.get("date", "")
     files = payload.get("files", {})
     result = {

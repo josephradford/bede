@@ -8,7 +8,7 @@ from bede_data.config import settings
 from bede_data.db.connection import get_db
 from bede_data.tz import utc_to_local
 
-router = APIRouter(prefix="/api/vault", tags=["vault"])
+router = APIRouter(prefix="/api/usage", tags=["usage"])
 
 _DEVICE_ALIASES = {"phone": "iphone", "mobile": "iphone"}
 

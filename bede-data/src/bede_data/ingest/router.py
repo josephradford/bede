@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from bede_data.db.connection import get_db
 from bede_data.ingest.auth import verify_ingest_token
 from bede_data.ingest.health_parser import parse_health_payload
-from bede_data.ingest.vault_parser import parse_vault_payload
+from bede_data.ingest.usage_parser import parse_usage_payload
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -81,13 +81,13 @@ def ingest_health(
     return {"status": "ok", "records": total}
 
 
-@router.post("/vault")
-def ingest_vault(
+@router.post("/usage")
+def ingest_usage(
     payload: dict,
     _token: str = Depends(verify_ingest_token),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    parsed = parse_vault_payload(payload)
+    parsed = parse_usage_payload(payload)
     date = payload.get("date", "")
     total = 0
 
@@ -103,6 +103,6 @@ def ingest_vault(
     total += _upsert_rows(conn, "claude_sessions", parsed["claude_sessions"])
     total += _upsert_rows(conn, "bede_sessions", parsed["bede_sessions"])
     total += _upsert_rows(conn, "music_listens", parsed.get("music_listens", []))
-    _update_freshness(conn, "vault", 86400)
+    _update_freshness(conn, "usage", 86400)
     conn.commit()
     return {"status": "ok", "records": total}

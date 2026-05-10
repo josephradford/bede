@@ -1,5 +1,5 @@
 from bede_data.config import settings
-from bede_data.ingest.vault_parser import parse_vault_payload
+from bede_data.ingest.usage_parser import parse_usage_payload
 
 
 def test_parse_screen_time_csv():
@@ -14,7 +14,7 @@ def test_parse_screen_time_csv():
             ),
         },
     }
-    result = parse_vault_payload(payload)
+    result = parse_usage_payload(payload)
     assert len(result["screen_time"]) == 3
     assert result["screen_time"][0]["device"] == "mac"
     assert result["screen_time"][0]["name"] == "Safari"
@@ -30,7 +30,7 @@ def test_parse_iphone_screen_time_csv():
             ),
         },
     }
-    result = parse_vault_payload(payload)
+    result = parse_usage_payload(payload)
     assert len(result["screen_time"]) == 1
     assert result["screen_time"][0]["device"] == "iphone"
 
@@ -45,7 +45,7 @@ def test_parse_safari_csv():
             ),
         },
     }
-    result = parse_vault_payload(payload)
+    result = parse_usage_payload(payload)
     assert len(result["safari_history"]) == 1
     assert result["safari_history"][0]["domain"] == "github.com"
     assert result["safari_history"][0]["url"] == "https://github.com"
@@ -61,7 +61,7 @@ def test_parse_youtube_csv():
             ),
         },
     }
-    result = parse_vault_payload(payload)
+    result = parse_usage_payload(payload)
     assert len(result["youtube_history"]) == 1
     assert result["youtube_history"][0]["title"] == "Cool Video"
 
@@ -76,7 +76,7 @@ def test_parse_podcasts_csv():
             ),
         },
     }
-    result = parse_vault_payload(payload)
+    result = parse_usage_payload(payload)
     assert len(result["podcasts"]) == 1
     assert result["podcasts"][0]["podcast"] == "The Daily"
     assert result["podcasts"][0]["duration_seconds"] == 1800
@@ -99,7 +99,7 @@ def test_parse_claude_sessions_markdown():
             ),
         },
     }
-    result = parse_vault_payload(payload)
+    result = parse_usage_payload(payload)
     assert len(result["claude_sessions"]) == 1
     assert result["claude_sessions"][0]["project"] == "home-server-stack"
     assert result["claude_sessions"][0]["duration_min"] == 90
@@ -107,7 +107,7 @@ def test_parse_claude_sessions_markdown():
 
 def test_parse_empty_files():
     payload = {"date": "2026-04-29", "files": {}}
-    result = parse_vault_payload(payload)
+    result = parse_usage_payload(payload)
     assert result["screen_time"] == []
     assert result["safari_history"] == []
 
@@ -121,7 +121,7 @@ def test_ingest_vault_stores_data(client, db):
         },
     }
     response = client.post(
-        "/ingest/vault",
+        "/ingest/usage",
         json=payload,
         headers={"Authorization": "Bearer test-token"},
     )
@@ -148,7 +148,7 @@ def test_ingest_vault_replaces_daily_data(client, db):
             ),
         },
     }
-    client.post("/ingest/vault", json=payload1, headers=headers)
+    client.post("/ingest/usage", json=payload1, headers=headers)
 
     payload2 = {
         "date": "2026-04-29",
@@ -156,7 +156,7 @@ def test_ingest_vault_replaces_daily_data(client, db):
             "screentime.csv": ("device,entry_type,name,seconds\nmac,app,Safari,5400\n"),
         },
     }
-    response = client.post("/ingest/vault", json=payload2, headers=headers)
+    response = client.post("/ingest/usage", json=payload2, headers=headers)
     assert response.status_code == 200
 
     cursor = db.execute(
