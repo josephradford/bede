@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 # Tables whose column names changed from the prototype bede schema.
 # init_db drops these if they have old-style columns, then SCHEMA_SQL recreates them.
@@ -286,6 +286,7 @@ CREATE TABLE IF NOT EXISTS data_freshness (
     source                   TEXT PRIMARY KEY,
     last_received_at         TEXT NOT NULL,
     expected_interval_seconds INTEGER NOT NULL,
+    always_expected          INTEGER NOT NULL DEFAULT 1,
     updated_at               TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
