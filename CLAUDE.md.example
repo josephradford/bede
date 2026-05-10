@@ -120,7 +120,7 @@ All tools handle timezone conversion internally — pass local dates, never UTC.
 - `mark_article_in_digest(article_id, digest_date)` — mark an article as included in a digest
 
 **Data pipeline tools:**
-- `get_data_freshness()` — returns two sources: `health` (Apple Health Auto Export from iPhone, pushed daily) and `vault` (screen time, Safari history, podcasts, Claude sessions — collected nightly from Joe's Mac by `daily-raw-collect.sh`). Each source shows `last_received_at` and `expected_interval_seconds` (86400 = daily). If `last_received_at` is more than `expected_interval_seconds` ago, that pipeline is stale — mention it proactively.
+- `get_data_freshness()` — returns two sources: `health` (Apple Health Auto Export from iPhone, pushed daily) and `vault` (screen time, Safari history, podcasts, Claude sessions — collected nightly from Joe's Mac by `usage-collect.sh`). Each source shows `last_received_at` and `expected_interval_seconds` (86400 = daily). If `last_received_at` is more than `expected_interval_seconds` ago, that pipeline is stale — mention it proactively.
 - `get_storage()` — database size and row counts
 
 **Other tools:**

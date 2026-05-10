@@ -57,7 +57,7 @@ graph TB
     subgraph Mac["Mac (launchd agents)"]
         HAE["Health Auto Export
         iPhone → bede-data"]
-        DailyCollect["daily-raw-collect.sh
+        DailyCollect["usage-collect.sh
         screen time, Safari, podcasts"]
         VaultSync["obsidian-git-backup.sh
         vault → GitHub every 2 min"]
@@ -158,7 +158,7 @@ flowchart TD
     subgraph mac["Data sources (Mac)"]
         hae["Health Auto Export
         (iPhone)"]
-        daily["daily-raw-collect.sh
+        daily["usage-collect.sh
         screen time, Safari,
         podcasts, sessions"]
     end
@@ -226,7 +226,7 @@ The data layer. FastAPI service handling ingest, storage, querying, and live dat
 | `live/` | Real-time proxies: OwnTracks location (with reverse geocode caching), Homepage API weather, air quality |
 | `analytics/` | Signal engine computing wellbeing flags from raw data |
 
-**Ingest pipeline:** iPhone Health Auto Export and Mac daily-raw-collect.sh POST data with a bearer token. Parsers normalise the payloads and upsert into SQLite tables.
+**Ingest pipeline:** iPhone Health Auto Export and Mac usage-collect.sh POST data with a bearer token. Parsers normalise the payloads and upsert into SQLite tables.
 
 **Live queries:** Location and weather data are fetched on demand from OwnTracks and Homepage API rather than stored. Reverse geocode results are cached in both memory and SQLite to respect Nominatim rate limits.
 
