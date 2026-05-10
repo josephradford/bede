@@ -81,6 +81,31 @@ def ingest_health(
     return {"status": "ok", "records": total}
 
 
+_USAGE_FRESHNESS = {
+    "screen_time_mac": {"files": {"screentime.csv"}, "always_expected": True},
+    "screen_time_iphone": {"files": {"iphone-screentime.csv"}, "always_expected": True},
+    "safari_history": {"prefix": "safari", "always_expected": True},
+    "youtube_history": {"prefix": "youtube", "always_expected": False},
+    "podcasts": {"prefix": "podcasts", "always_expected": False},
+    "claude_sessions": {"prefix": "claude-sessions", "always_expected": False},
+    "bede_sessions": {"prefix": "bede-sessions", "always_expected": False},
+}
+
+
+def _usage_sources_present(files: dict[str, str]) -> set[str]:
+    """Return the set of freshness source keys whose files appear in the upload."""
+    present = set()
+    filenames = set(files.keys())
+    for source_key, spec in _USAGE_FRESHNESS.items():
+        if "files" in spec:
+            if spec["files"] & filenames:
+                present.add(source_key)
+        elif "prefix" in spec:
+            if any(f.startswith(spec["prefix"]) for f in filenames):
+                present.add(source_key)
+    return present
+
+
 @router.post("/usage")
 def ingest_usage(
     payload: dict,
@@ -103,6 +128,10 @@ def ingest_usage(
     total += _upsert_rows(conn, "claude_sessions", parsed["claude_sessions"])
     total += _upsert_rows(conn, "bede_sessions", parsed["bede_sessions"])
     total += _upsert_rows(conn, "music_listens", parsed.get("music_listens", []))
-    _update_freshness(conn, "usage", 86400)
+
+    for source_key in _usage_sources_present(payload.get("files", {})):
+        spec = _USAGE_FRESHNESS[source_key]
+        _update_freshness(conn, source_key, 10800, always_expected=spec["always_expected"])
+
     conn.commit()
     return {"status": "ok", "records": total}

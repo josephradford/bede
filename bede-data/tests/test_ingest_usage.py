@@ -166,3 +166,65 @@ def test_ingest_vault_replaces_daily_data(client, db):
     assert len(rows) == 1
     assert rows[0]["name"] == "Safari"
     assert rows[0]["seconds"] == 5400
+
+
+def test_ingest_usage_updates_granular_freshness(client, db):
+    settings.ingest_write_token = "test-token"
+    payload = {
+        "date": "2026-04-29",
+        "files": {
+            "screentime.csv": "device,entry_type,name,seconds\nmac,app,Safari,3600\n",
+            "iphone-screentime.csv": "device,entry_type,name,seconds\niphone,app,Instagram,2400\n",
+            "safari-pages.csv": "device,domain,title,url,visited_at\nmac,github.com,GitHub,https://github.com,2026-04-29T10:00:00Z\n",
+            "youtube.csv": "title,url,visited_at\nCool Video,https://youtube.com/watch?v=abc,2026-04-29T14:00:00Z\n",
+        },
+    }
+    response = client.post(
+        "/ingest/usage",
+        json=payload,
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert response.status_code == 200
+
+    cursor = db.execute(
+        "SELECT source, expected_interval_seconds, always_expected FROM data_freshness ORDER BY source"
+    )
+    sources = {row["source"]: dict(row) for row in cursor.fetchall()}
+
+    assert "screen_time_mac" in sources
+    assert sources["screen_time_mac"]["expected_interval_seconds"] == 10800
+    assert sources["screen_time_mac"]["always_expected"] == 1
+
+    assert "screen_time_iphone" in sources
+    assert sources["screen_time_iphone"]["always_expected"] == 1
+
+    assert "safari_history" in sources
+    assert sources["safari_history"]["always_expected"] == 1
+
+    assert "youtube_history" in sources
+    assert sources["youtube_history"]["always_expected"] == 0
+
+    assert "vault" not in sources
+    assert "usage" not in sources
+
+
+def test_ingest_usage_skips_freshness_for_absent_optional_sources(client, db):
+    settings.ingest_write_token = "test-token"
+    payload = {
+        "date": "2026-04-29",
+        "files": {
+            "screentime.csv": "device,entry_type,name,seconds\nmac,app,Safari,3600\n",
+        },
+    }
+    client.post(
+        "/ingest/usage",
+        json=payload,
+        headers={"Authorization": "Bearer test-token"},
+    )
+
+    cursor = db.execute("SELECT source FROM data_freshness ORDER BY source")
+    sources = [row["source"] for row in cursor.fetchall()]
+    assert "screen_time_mac" in sources
+    assert "youtube_history" not in sources
+    assert "podcasts" not in sources
+    assert "claude_sessions" not in sources
