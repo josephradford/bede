@@ -42,12 +42,15 @@ def _replace_daily(
     return _upsert_rows(conn, table, rows)
 
 
-def _update_freshness(conn: sqlite3.Connection, source: str, expected_interval: int):
+def _update_freshness(
+    conn: sqlite3.Connection, source: str, expected_interval: int, *, always_expected: bool = True
+):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn.execute(
-        """INSERT OR REPLACE INTO data_freshness (source, last_received_at, expected_interval_seconds, updated_at)
-           VALUES (?, ?, ?, ?)""",
-        (source, now, expected_interval, now),
+        """INSERT OR REPLACE INTO data_freshness
+           (source, last_received_at, expected_interval_seconds, always_expected, updated_at)
+           VALUES (?, ?, ?, ?, ?)""",
+        (source, now, expected_interval, int(always_expected), now),
     )
 
 
@@ -59,12 +62,21 @@ def ingest_health(
 ):
     parsed = parse_health_payload(payload)
     total = 0
-    total += _upsert_rows(conn, "health_metrics", parsed["health_metrics"])
-    total += _upsert_rows(conn, "sleep_phases", parsed["sleep_phases"])
-    total += _upsert_rows(conn, "workouts", parsed["workouts"])
-    total += _upsert_rows(conn, "medications", parsed["medications"])
-    total += _upsert_rows(conn, "state_of_mind", parsed["state_of_mind"])
-    _update_freshness(conn, "health", 86400)
+    counts = {}
+    for table in ("health_metrics", "sleep_phases", "workouts", "medications", "state_of_mind"):
+        n = _upsert_rows(conn, table, parsed[table])
+        total += n
+        counts[table] = n
+    _HEALTH_SOURCE_KEYS = {
+        "health_metrics": "health_metrics",
+        "sleep_phases": "sleep",
+        "workouts": "workouts",
+        "medications": "medications",
+        "state_of_mind": "state_of_mind",
+    }
+    for table, source_key in _HEALTH_SOURCE_KEYS.items():
+        if counts[table] > 0:
+            _update_freshness(conn, source_key, 1800)
     conn.commit()
     return {"status": "ok", "records": total}
 
