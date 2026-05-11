@@ -9,6 +9,17 @@ from bede_data.db.connection import get_db
 
 router = APIRouter(prefix="/api/freshness", tags=["freshness"])
 
+_KNOWN_SOURCES = {
+    "health_metrics": {"expected_interval_seconds": 1800, "always_expected": 1},
+    "sleep": {"expected_interval_seconds": 1800, "always_expected": 1},
+    "workouts": {"expected_interval_seconds": 1800, "always_expected": 1},
+    "medications": {"expected_interval_seconds": 1800, "always_expected": 1},
+    "state_of_mind": {"expected_interval_seconds": 1800, "always_expected": 1},
+    "screen_time_mac": {"expected_interval_seconds": 10800, "always_expected": 1},
+    "screen_time_iphone": {"expected_interval_seconds": 10800, "always_expected": 1},
+    "safari_history": {"expected_interval_seconds": 10800, "always_expected": 1},
+}
+
 
 def _fetch_owntracks_freshness() -> dict | None:
     try:
@@ -46,11 +57,19 @@ def get_freshness(conn: sqlite3.Connection = Depends(get_db)):
     cursor = conn.execute(
         "SELECT source, last_received_at, expected_interval_seconds, always_expected, updated_at FROM data_freshness ORDER BY source"
     )
-    sources = [dict(r) for r in cursor.fetchall()]
+    sources = {r["source"]: dict(r) for r in cursor.fetchall()}
+
+    for source, defaults in _KNOWN_SOURCES.items():
+        if source not in sources:
+            sources[source] = {
+                "source": source,
+                "last_received_at": None,
+                "updated_at": None,
+                **defaults,
+            }
 
     owntracks = _fetch_owntracks_freshness()
     if owntracks is not None:
-        sources.append(owntracks)
-        sources.sort(key=lambda s: s["source"])
+        sources["owntracks"] = owntracks
 
-    return {"sources": sources}
+    return {"sources": sorted(sources.values(), key=lambda s: s["source"])}
