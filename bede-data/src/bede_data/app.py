@@ -19,7 +19,7 @@ from bede_data.api.retention import router as retention_router
 from bede_data.api.sessions import router as sessions_router
 from bede_data.api.storage import router as storage_router
 from bede_data.api.task_log import router as task_log_router
-from bede_data.api.vault_data import router as vault_data_router
+from bede_data.api.usage_data import router as usage_data_router
 from bede_data.api.vault_queue import router as vault_queue_router
 from bede_data.api.weather import router as weather_router
 from bede_data.db.connection import get_db, init_db
@@ -37,7 +37,7 @@ def create_app() -> FastAPI:
 
     app.include_router(ingest_router)
     app.include_router(health_router)
-    app.include_router(vault_data_router)
+    app.include_router(usage_data_router)
     app.include_router(location_router)
     app.include_router(weather_router)
     app.include_router(memories_router)

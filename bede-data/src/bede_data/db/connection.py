@@ -60,6 +60,17 @@ def init_db() -> None:
             except sqlite3.OperationalError:
                 pass
             conn.commit()
+        if existing is not None and existing < 11:
+            try:
+                conn.execute(
+                    "ALTER TABLE data_freshness ADD COLUMN always_expected INTEGER NOT NULL DEFAULT 1"
+                )
+            except sqlite3.OperationalError:
+                pass
+            conn.execute(
+                "DELETE FROM data_freshness WHERE source IN ('health', 'vault')"
+            )
+            conn.commit()
         conn.commit()
         conn.executescript(SCHEMA_SQL)
         existing = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]

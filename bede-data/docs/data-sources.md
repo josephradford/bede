@@ -23,7 +23,7 @@ Setup details: [hae-setup.md](hae-setup.md)
 
 ## Usage Data (Mac → usage-collect.sh → bede-data)
 
-Source: `usage-collect.sh` launchd agent on the Mac. Runs 13 times daily (8am–11pm, irregular intervals, worst-case gap 3h). Endpoint: `POST /ingest/vault`.
+Source: `usage-collect.sh` launchd agent on the Mac. Runs 13 times daily (8am–11pm, irregular intervals, worst-case gap 3h). Endpoint: `POST /ingest/usage`.
 
 | Source | File | Devices | Underlying DB | Always present? |
 |--------|------|---------|---------------|-----------------|

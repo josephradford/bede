@@ -79,7 +79,7 @@ def _seed_vault_data(db):
 
 def test_get_screen_time(client, db):
     _seed_vault_data(db)
-    response = client.get("/api/vault/screen-time", params={"date": "2026-04-29"})
+    response = client.get("/api/usage/screen-time", params={"date": "2026-04-29"})
     assert response.status_code == 200
     data = response.json()
     assert len(data["entries"]) == 4
@@ -88,7 +88,7 @@ def test_get_screen_time(client, db):
 def test_get_screen_time_filter_device(client, db):
     _seed_vault_data(db)
     response = client.get(
-        "/api/vault/screen-time", params={"date": "2026-04-29", "device": "mac"}
+        "/api/usage/screen-time", params={"date": "2026-04-29", "device": "mac"}
     )
     assert response.status_code == 200
     data = response.json()
@@ -99,7 +99,7 @@ def test_get_screen_time_filter_device(client, db):
 def test_get_screen_time_device_alias(client, db):
     _seed_vault_data(db)
     response = client.get(
-        "/api/vault/screen-time", params={"date": "2026-04-29", "device": "phone"}
+        "/api/usage/screen-time", params={"date": "2026-04-29", "device": "phone"}
     )
     assert response.status_code == 200
     data = response.json()
@@ -110,7 +110,7 @@ def test_get_screen_time_device_alias(client, db):
 def test_get_screen_time_device_case_insensitive(client, db):
     _seed_vault_data(db)
     response = client.get(
-        "/api/vault/screen-time", params={"date": "2026-04-29", "device": "Mac"}
+        "/api/usage/screen-time", params={"date": "2026-04-29", "device": "Mac"}
     )
     assert response.status_code == 200
     data = response.json()
@@ -131,7 +131,7 @@ def test_get_safari_device_case_insensitive(client, db):
     )
     db.commit()
     response = client.get(
-        "/api/vault/safari", params={"date": "2026-04-29", "device": "phone"}
+        "/api/usage/safari", params={"date": "2026-04-29", "device": "phone"}
     )
     assert response.status_code == 200
     data = response.json()
@@ -142,7 +142,7 @@ def test_get_safari_device_case_insensitive(client, db):
 def test_get_screen_time_top_n(client, db):
     _seed_vault_data(db)
     response = client.get(
-        "/api/vault/screen-time",
+        "/api/usage/screen-time",
         params={"date": "2026-04-29", "device": "mac", "top_n": 2},
     )
     assert response.status_code == 200
@@ -153,7 +153,7 @@ def test_get_screen_time_top_n(client, db):
 
 def test_get_safari(client, db):
     _seed_vault_data(db)
-    response = client.get("/api/vault/safari", params={"date": "2026-04-29"})
+    response = client.get("/api/usage/safari", params={"date": "2026-04-29"})
     assert response.status_code == 200
     data = response.json()
     assert len(data["entries"]) == 2
@@ -162,7 +162,7 @@ def test_get_safari(client, db):
 def test_get_safari_filter_domain(client, db):
     _seed_vault_data(db)
     response = client.get(
-        "/api/vault/safari", params={"date": "2026-04-29", "domain": "github.com"}
+        "/api/usage/safari", params={"date": "2026-04-29", "domain": "github.com"}
     )
     assert response.status_code == 200
     data = response.json()
@@ -172,7 +172,7 @@ def test_get_safari_filter_domain(client, db):
 
 def test_get_youtube(client, db):
     _seed_vault_data(db)
-    response = client.get("/api/vault/youtube", params={"date": "2026-04-29"})
+    response = client.get("/api/usage/youtube", params={"date": "2026-04-29"})
     assert response.status_code == 200
     data = response.json()
     assert len(data["entries"]) == 1
@@ -181,7 +181,7 @@ def test_get_youtube(client, db):
 
 def test_get_podcasts(client, db):
     _seed_vault_data(db)
-    response = client.get("/api/vault/podcasts", params={"date": "2026-04-29"})
+    response = client.get("/api/usage/podcasts", params={"date": "2026-04-29"})
     assert response.status_code == 200
     data = response.json()
     assert len(data["entries"]) == 1
@@ -190,7 +190,7 @@ def test_get_podcasts(client, db):
 
 def test_get_claude_sessions(client, db):
     _seed_vault_data(db)
-    response = client.get("/api/vault/claude-sessions", params={"date": "2026-04-29"})
+    response = client.get("/api/usage/claude-sessions", params={"date": "2026-04-29"})
     assert response.status_code == 200
     data = response.json()
     assert len(data["sessions"]) == 1
@@ -199,7 +199,7 @@ def test_get_claude_sessions(client, db):
 
 def test_get_bede_sessions(client, db):
     _seed_vault_data(db)
-    response = client.get("/api/vault/bede-sessions", params={"date": "2026-04-29"})
+    response = client.get("/api/usage/bede-sessions", params={"date": "2026-04-29"})
     assert response.status_code == 200
     data = response.json()
     assert len(data["sessions"]) == 1
@@ -210,7 +210,7 @@ class TestTimezoneConversion:
     def test_safari_timestamps_converted_to_local(self, client, db):
         _seed_vault_data(db)
         response = client.get(
-            "/api/vault/safari",
+            "/api/usage/safari",
             params={"date": "2026-04-29", "timezone": "Australia/Sydney"},
         )
         entries = response.json()["entries"]
@@ -220,7 +220,7 @@ class TestTimezoneConversion:
     def test_youtube_timestamps_converted_to_local(self, client, db):
         _seed_vault_data(db)
         response = client.get(
-            "/api/vault/youtube",
+            "/api/usage/youtube",
             params={"date": "2026-04-29", "timezone": "Australia/Sydney"},
         )
         entries = response.json()["entries"]
@@ -229,7 +229,7 @@ class TestTimezoneConversion:
     def test_podcast_timestamps_converted_to_local(self, client, db):
         _seed_vault_data(db)
         response = client.get(
-            "/api/vault/podcasts",
+            "/api/usage/podcasts",
             params={"date": "2026-04-29", "timezone": "Australia/Sydney"},
         )
         entries = response.json()["entries"]
@@ -238,7 +238,7 @@ class TestTimezoneConversion:
     def test_session_timestamps_not_converted(self, client, db):
         _seed_vault_data(db)
         response = client.get(
-            "/api/vault/claude-sessions",
+            "/api/usage/claude-sessions",
             params={"date": "2026-04-29", "timezone": "Australia/Sydney"},
         )
         sessions = response.json()["sessions"]
@@ -248,7 +248,7 @@ class TestTimezoneConversion:
     def test_different_timezone_changes_output(self, client, db):
         _seed_vault_data(db)
         response = client.get(
-            "/api/vault/podcasts",
+            "/api/usage/podcasts",
             params={"date": "2026-04-29", "timezone": "US/Eastern"},
         )
         entries = response.json()["entries"]

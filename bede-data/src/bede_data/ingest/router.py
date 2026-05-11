@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from bede_data.db.connection import get_db
 from bede_data.ingest.auth import verify_ingest_token
 from bede_data.ingest.health_parser import parse_health_payload
-from bede_data.ingest.vault_parser import parse_vault_payload
+from bede_data.ingest.usage_parser import parse_usage_payload
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -42,12 +42,19 @@ def _replace_daily(
     return _upsert_rows(conn, table, rows)
 
 
-def _update_freshness(conn: sqlite3.Connection, source: str, expected_interval: int):
+def _update_freshness(
+    conn: sqlite3.Connection,
+    source: str,
+    expected_interval: int,
+    *,
+    always_expected: bool = True,
+):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn.execute(
-        """INSERT OR REPLACE INTO data_freshness (source, last_received_at, expected_interval_seconds, updated_at)
-           VALUES (?, ?, ?, ?)""",
-        (source, now, expected_interval, now),
+        """INSERT OR REPLACE INTO data_freshness
+           (source, last_received_at, expected_interval_seconds, always_expected, updated_at)
+           VALUES (?, ?, ?, ?, ?)""",
+        (source, now, expected_interval, int(always_expected), now),
     )
 
 
@@ -59,23 +66,63 @@ def ingest_health(
 ):
     parsed = parse_health_payload(payload)
     total = 0
-    total += _upsert_rows(conn, "health_metrics", parsed["health_metrics"])
-    total += _upsert_rows(conn, "sleep_phases", parsed["sleep_phases"])
-    total += _upsert_rows(conn, "workouts", parsed["workouts"])
-    total += _upsert_rows(conn, "medications", parsed["medications"])
-    total += _upsert_rows(conn, "state_of_mind", parsed["state_of_mind"])
-    _update_freshness(conn, "health", 86400)
+    counts = {}
+    for table in (
+        "health_metrics",
+        "sleep_phases",
+        "workouts",
+        "medications",
+        "state_of_mind",
+    ):
+        n = _upsert_rows(conn, table, parsed[table])
+        total += n
+        counts[table] = n
+    _HEALTH_SOURCE_KEYS = {
+        "health_metrics": "health_metrics",
+        "sleep_phases": "sleep",
+        "workouts": "workouts",
+        "medications": "medications",
+        "state_of_mind": "state_of_mind",
+    }
+    for table, source_key in _HEALTH_SOURCE_KEYS.items():
+        if counts[table] > 0:
+            _update_freshness(conn, source_key, 1800)
     conn.commit()
     return {"status": "ok", "records": total}
 
 
-@router.post("/vault")
-def ingest_vault(
+_USAGE_FRESHNESS = {
+    "screen_time_mac": {"files": {"screentime.csv"}, "always_expected": True},
+    "screen_time_iphone": {"files": {"iphone-screentime.csv"}, "always_expected": True},
+    "safari_history": {"prefix": "safari", "always_expected": True},
+    "youtube_history": {"prefix": "youtube", "always_expected": False},
+    "podcasts": {"prefix": "podcasts", "always_expected": False},
+    "claude_sessions": {"prefix": "claude-sessions", "always_expected": False},
+    "bede_sessions": {"prefix": "bede-sessions", "always_expected": False},
+}
+
+
+def _usage_sources_present(files: dict[str, str]) -> set[str]:
+    """Return the set of freshness source keys whose files appear in the upload."""
+    present = set()
+    filenames = set(files.keys())
+    for source_key, spec in _USAGE_FRESHNESS.items():
+        if "files" in spec:
+            if spec["files"] & filenames:
+                present.add(source_key)
+        elif "prefix" in spec:
+            if any(f.startswith(spec["prefix"]) for f in filenames):
+                present.add(source_key)
+    return present
+
+
+@router.post("/usage")
+def ingest_usage(
     payload: dict,
     _token: str = Depends(verify_ingest_token),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    parsed = parse_vault_payload(payload)
+    parsed = parse_usage_payload(payload)
     date = payload.get("date", "")
     total = 0
 
@@ -91,6 +138,12 @@ def ingest_vault(
     total += _upsert_rows(conn, "claude_sessions", parsed["claude_sessions"])
     total += _upsert_rows(conn, "bede_sessions", parsed["bede_sessions"])
     total += _upsert_rows(conn, "music_listens", parsed.get("music_listens", []))
-    _update_freshness(conn, "vault", 86400)
+
+    for source_key in _usage_sources_present(payload.get("files", {})):
+        spec = _USAGE_FRESHNESS[source_key]
+        _update_freshness(
+            conn, source_key, 10800, always_expected=spec["always_expected"]
+        )
+
     conn.commit()
     return {"status": "ok", "records": total}

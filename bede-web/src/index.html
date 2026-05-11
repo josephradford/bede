@@ -18,17 +18,22 @@
         <template x-if="error">
           <p class="text-status-error text-sm" x-text="error"></p>
         </template>
-        <div class="space-y-1">
-          <template x-for="src in freshness" :key="src.source">
-            <div class="flex items-center justify-between text-sm">
-              <span class="flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full" :class="freshnessColor(src)"></span>
-                <span x-text="src.source"></span>
-              </span>
-              <span class="text-gray-500 text-xs" x-text="timeAgo(src.last_received_at)"></span>
+        <template x-for="group in freshnessGroups" :key="group.label">
+          <div class="mb-3 last:mb-0">
+            <h3 class="text-[10px] uppercase text-gray-600 mb-1" x-text="group.label"></h3>
+            <div class="space-y-1">
+              <template x-for="src in group.sources" :key="src.source">
+                <div class="flex items-center justify-between text-sm">
+                  <span class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full" :class="freshnessColor(src)"></span>
+                    <span x-text="sourceLabel(src.source)"></span>
+                  </span>
+                  <span class="text-gray-500 text-xs" x-text="timeAgo(src.last_received_at)"></span>
+                </div>
+              </template>
             </div>
-          </template>
-        </div>
+          </div>
+        </template>
         <a href="/tasks.html" class="text-xs text-gray-500 hover:text-gray-300 mt-3 inline-block">View all →</a>
       </div>
 
@@ -95,6 +100,7 @@
     function dashboard() {
       return {
         freshness: [],
+        freshnessGroups: [],
         recentTasks: [],
         storage: null,
         schedule: [],
@@ -123,6 +129,7 @@
 
           this.error = null;
           this.freshness = freshRes.data.sources;
+          this.freshnessGroups = this.groupFreshness(freshRes.data.sources);
           this.recentTasks = taskRes.data.executions;
           this.storage = storageRes.data;
 
@@ -145,6 +152,7 @@
           const expected = src.expected_interval_seconds || 86400;
           if (age <= expected) return "bg-status-ok";
           if (age <= expected * 2) return "bg-status-warn";
+          if (!src.always_expected) return "bg-status-muted";
           return "bg-status-error";
         },
 
@@ -183,6 +191,39 @@
           if (seconds < 3600) return Math.floor(seconds / 60) + "m ago";
           if (seconds < 86400) return Math.floor(seconds / 3600) + "h ago";
           return Math.floor(seconds / 86400) + "d ago";
+        },
+
+        sourceLabel(source) {
+          const labels = {
+            health_metrics: "Metrics",
+            sleep: "Sleep",
+            workouts: "Workouts",
+            medications: "Medications",
+            state_of_mind: "Wellbeing",
+            screen_time_mac: "Screen Time (Mac)",
+            screen_time_iphone: "Screen Time (iPhone)",
+            safari_history: "Safari",
+            youtube_history: "YouTube",
+            podcasts: "Podcasts",
+            claude_sessions: "Claude",
+            bede_sessions: "Bede",
+            owntracks: "Location",
+          };
+          return labels[source] || source;
+        },
+
+        groupFreshness(sources) {
+          const groups = {
+            "Health": ["health_metrics", "sleep", "workouts", "medications", "state_of_mind"],
+            "Usage": ["screen_time_mac", "screen_time_iphone", "safari_history", "youtube_history", "podcasts", "claude_sessions", "bede_sessions"],
+            "Location": ["owntracks"],
+          };
+          return Object.entries(groups)
+            .map(([label, keys]) => ({
+              label,
+              sources: keys.map(k => sources.find(s => s.source === k)).filter(Boolean),
+            }))
+            .filter(g => g.sources.length > 0);
         },
       };
     }
