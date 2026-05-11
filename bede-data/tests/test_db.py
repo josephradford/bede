@@ -169,14 +169,18 @@ def test_articles_url_unique(db):
 
 
 def test_data_freshness_has_always_expected_column(db):
-    cols = {row[1] for row in db.execute("PRAGMA table_info(data_freshness)").fetchall()}
+    cols = {
+        row[1] for row in db.execute("PRAGMA table_info(data_freshness)").fetchall()
+    }
     assert "always_expected" in cols
     db.execute(
         "INSERT INTO data_freshness (source, last_received_at, expected_interval_seconds, always_expected) VALUES (?, ?, ?, ?)",
         ("test_source", "2026-05-10T00:00:00Z", 1800, 1),
     )
     db.commit()
-    row = db.execute("SELECT always_expected FROM data_freshness WHERE source = 'test_source'").fetchone()
+    row = db.execute(
+        "SELECT always_expected FROM data_freshness WHERE source = 'test_source'"
+    ).fetchone()
     assert row["always_expected"] == 1
 
 
@@ -186,5 +190,7 @@ def test_data_freshness_always_expected_defaults_to_true(db):
         ("test_default", "2026-05-10T00:00:00Z", 1800),
     )
     db.commit()
-    row = db.execute("SELECT always_expected FROM data_freshness WHERE source = 'test_default'").fetchone()
+    row = db.execute(
+        "SELECT always_expected FROM data_freshness WHERE source = 'test_default'"
+    ).fetchone()
     assert row["always_expected"] == 1

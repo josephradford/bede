@@ -81,9 +81,7 @@ def test_freshness_includes_owntracks(client, db, monkeypatch):
         200,
         json=[{"tst": 1715320500, "_type": "location"}],
     )
-    monkeypatch.setattr(
-        "httpx.get", lambda *args, **kwargs: mock_response
-    )
+    monkeypatch.setattr("httpx.get", lambda *args, **kwargs: mock_response)
 
     response = client.get("/api/freshness")
     sources = {s["source"]: s for s in response.json()["sources"]}

@@ -43,7 +43,11 @@ def _replace_daily(
 
 
 def _update_freshness(
-    conn: sqlite3.Connection, source: str, expected_interval: int, *, always_expected: bool = True
+    conn: sqlite3.Connection,
+    source: str,
+    expected_interval: int,
+    *,
+    always_expected: bool = True,
 ):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn.execute(
@@ -63,7 +67,13 @@ def ingest_health(
     parsed = parse_health_payload(payload)
     total = 0
     counts = {}
-    for table in ("health_metrics", "sleep_phases", "workouts", "medications", "state_of_mind"):
+    for table in (
+        "health_metrics",
+        "sleep_phases",
+        "workouts",
+        "medications",
+        "state_of_mind",
+    ):
         n = _upsert_rows(conn, table, parsed[table])
         total += n
         counts[table] = n
@@ -131,7 +141,9 @@ def ingest_usage(
 
     for source_key in _usage_sources_present(payload.get("files", {})):
         spec = _USAGE_FRESHNESS[source_key]
-        _update_freshness(conn, source_key, 10800, always_expected=spec["always_expected"])
+        _update_freshness(
+            conn, source_key, 10800, always_expected=spec["always_expected"]
+        )
 
     conn.commit()
     return {"status": "ok", "records": total}

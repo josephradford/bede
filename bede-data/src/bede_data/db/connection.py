@@ -67,7 +67,9 @@ def init_db() -> None:
                 )
             except sqlite3.OperationalError:
                 pass
-            conn.execute("DELETE FROM data_freshness WHERE source IN ('health', 'vault')")
+            conn.execute(
+                "DELETE FROM data_freshness WHERE source IN ('health', 'vault')"
+            )
             conn.commit()
         conn.commit()
         conn.executescript(SCHEMA_SQL)
