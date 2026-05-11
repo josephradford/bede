@@ -1,10 +1,37 @@
-def test_get_freshness_empty(client):
+def test_get_freshness_empty_shows_always_expected_placeholders(client, monkeypatch):
+    import httpx
+
+    def raise_error(*args, **kwargs):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr("httpx.get", raise_error)
+
     response = client.get("/api/freshness")
     assert response.status_code == 200
-    assert response.json()["sources"] == []
+    sources = response.json()["sources"]
+    assert len(sources) == 8
+    assert all(s["always_expected"] == 1 for s in sources)
+    assert all(s["last_received_at"] is None for s in sources)
+    names = {s["source"] for s in sources}
+    assert names == {
+        "health_metrics",
+        "sleep",
+        "workouts",
+        "medications",
+        "state_of_mind",
+        "screen_time_mac",
+        "screen_time_iphone",
+        "safari_history",
+    }
 
 
-def test_get_freshness_with_data(client, db):
+def test_get_freshness_with_data(client, db, monkeypatch):
+    import httpx
+
+    monkeypatch.setattr(
+        "httpx.get", lambda *a, **kw: (_ for _ in ()).throw(httpx.ConnectError(""))
+    )
+
     db.execute(
         "INSERT INTO data_freshness (source, last_received_at, expected_interval_seconds, always_expected) VALUES (?, ?, ?, ?)",
         ("health_metrics", "2026-04-29T08:00:00Z", 1800, 1),
@@ -16,12 +43,11 @@ def test_get_freshness_with_data(client, db):
     db.commit()
 
     response = client.get("/api/freshness")
-    data = response.json()
-    assert len(data["sources"]) == 2
-    assert all(
-        "source" in s and "last_received_at" in s and "always_expected" in s
-        for s in data["sources"]
-    )
+    sources = {s["source"]: s for s in response.json()["sources"]}
+    assert len(sources) == 8
+    assert sources["health_metrics"]["last_received_at"] == "2026-04-29T08:00:00Z"
+    assert sources["screen_time_mac"]["last_received_at"] == "2026-04-29T06:00:00Z"
+    assert sources["sleep"]["last_received_at"] is None
 
 
 def test_health_ingest_updates_granular_freshness(client, db):
@@ -61,7 +87,13 @@ def test_health_ingest_updates_granular_freshness(client, db):
     assert "health" not in sources
 
 
-def test_freshness_includes_always_expected_field(client, db):
+def test_freshness_includes_always_expected_field(client, db, monkeypatch):
+    import httpx
+
+    monkeypatch.setattr(
+        "httpx.get", lambda *a, **kw: (_ for _ in ()).throw(httpx.ConnectError(""))
+    )
+
     db.execute(
         "INSERT INTO data_freshness (source, last_received_at, expected_interval_seconds, always_expected) VALUES (?, ?, ?, ?)",
         ("youtube_history", "2026-05-10T08:00:00Z", 10800, 0),
@@ -69,9 +101,10 @@ def test_freshness_includes_always_expected_field(client, db):
     db.commit()
 
     response = client.get("/api/freshness")
-    sources = response.json()["sources"]
-    assert len(sources) == 1
-    assert sources[0]["always_expected"] == 0
+    sources = {s["source"]: s for s in response.json()["sources"]}
+    assert len(sources) == 9
+    assert sources["youtube_history"]["always_expected"] == 0
+    assert sources["youtube_history"]["last_received_at"] == "2026-05-10T08:00:00Z"
 
 
 def test_freshness_includes_owntracks(client, db, monkeypatch):
