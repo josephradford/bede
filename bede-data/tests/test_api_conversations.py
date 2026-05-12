@@ -9,9 +9,7 @@ from bede_data.config import settings
 def sessions_dir(tmp_path):
     settings.claude_sessions_dir = str(tmp_path)
 
-    session_dir = tmp_path / "abc-123"
-    session_dir.mkdir()
-    jsonl_file = session_dir / "session.jsonl"
+    jsonl_file = tmp_path / "abc-123.jsonl"
     lines = [
         json.dumps(
             {
@@ -30,9 +28,7 @@ def sessions_dir(tmp_path):
     ]
     jsonl_file.write_text("\n".join(lines))
 
-    session_dir2 = tmp_path / "def-456"
-    session_dir2.mkdir()
-    jsonl_file2 = session_dir2 / "session.jsonl"
+    jsonl_file2 = tmp_path / "def-456.jsonl"
     lines2 = [
         json.dumps(
             {
@@ -54,6 +50,14 @@ def test_list_conversations(client, sessions_dir):
     assert len(data["sessions"]) == 2
 
 
+def test_list_conversations_has_metadata(client, sessions_dir):
+    response = client.get("/api/conversations")
+    sessions = response.json()["sessions"]
+    abc = next(s for s in sessions if s["session_id"] == "abc-123")
+    assert abc["message_count"] == 2
+    assert abc["first_timestamp"] == "2026-04-29T08:00:00Z"
+
+
 def test_get_conversation(client, sessions_dir):
     response = client.get("/api/conversations/abc-123")
     assert response.status_code == 200
@@ -66,3 +70,15 @@ def test_get_conversation(client, sessions_dir):
 def test_get_conversation_not_found(client, sessions_dir):
     response = client.get("/api/conversations/nonexistent")
     assert response.status_code == 404
+
+
+def test_list_conversations_empty_dir(client, tmp_path):
+    settings.claude_sessions_dir = str(tmp_path)
+    response = client.get("/api/conversations")
+    assert response.json()["sessions"] == []
+
+
+def test_list_conversations_ignores_non_jsonl_files(client, sessions_dir):
+    (sessions_dir / "README.md").write_text("not a session")
+    response = client.get("/api/conversations")
+    assert len(response.json()["sessions"]) == 2

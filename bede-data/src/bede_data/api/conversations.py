@@ -12,17 +12,15 @@ _SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 def _scan_sessions() -> list[dict]:
-    """Walk the sessions directory for subdirectories containing session.jsonl files. Returns lightweight metadata (id, message count, first timestamp) without loading full transcripts."""
+    """Walk the sessions directory for .jsonl files. Returns lightweight metadata
+    (id, message count, first timestamp) without loading full transcripts."""
     sessions_path = Path(settings.claude_sessions_dir)
     if not sessions_path.exists():
         return []
 
     sessions = []
-    for session_dir in sorted(sessions_path.iterdir()):
-        if not session_dir.is_dir():
-            continue
-        jsonl_file = session_dir / "session.jsonl"
-        if not jsonl_file.exists():
+    for jsonl_file in sorted(sessions_path.glob("*.jsonl")):
+        if not jsonl_file.is_file():
             continue
 
         first_line = None
@@ -41,7 +39,7 @@ def _scan_sessions() -> list[dict]:
 
         sessions.append(
             {
-                "session_id": session_dir.name,
+                "session_id": jsonl_file.stem,
                 "message_count": line_count,
                 "first_timestamp": first_line.get("timestamp") if first_line else None,
             }
@@ -59,7 +57,7 @@ def list_conversations():
 def get_conversation(session_id: str):
     if not _SESSION_ID_RE.match(session_id):
         raise HTTPException(status_code=400, detail="Invalid session ID")
-    jsonl_file = Path(settings.claude_sessions_dir) / session_id / "session.jsonl"
+    jsonl_file = Path(settings.claude_sessions_dir) / f"{session_id}.jsonl"
     if not jsonl_file.exists():
         raise HTTPException(status_code=404, detail="Session not found")
 
