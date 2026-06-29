@@ -23,8 +23,9 @@ SESSION_TIMEOUT_MINUTES=10
 
 **2. Sync Claude OAuth credentials from Mac to server:**
 ```bash
-security find-generic-password -s "Claude Code-credentials" -w | \
-  ssh user@SERVER_IP "cat > ~/.claude/.credentials.json"
+security find-generic-password -s "Claude Code-credentials" -w > /tmp/claude-creds.json
+scp /tmp/claude-creds.json user@SERVER_IP:~/.claude/.credentials.json
+rm /tmp/claude-creds.json
 ```
 
 **3. Create your persona file** — `bede/CLAUDE.md` is gitignored (it's personal). Copy the example and fill in your details:
@@ -63,11 +64,14 @@ Claude Code refreshes tokens automatically — the credentials file is mounted r
 If Bede does stop responding with an auth error (e.g. after a very long gap), run from your Mac:
 
 ```bash
-security find-generic-password -s "Claude Code-credentials" -w | \
-  ssh user@SERVER_IP "cat > ~/.claude/.credentials.json"
+security find-generic-password -s "Claude Code-credentials" -w > /tmp/claude-creds.json
+scp /tmp/claude-creds.json user@SERVER_IP:~/.claude/.credentials.json
+rm /tmp/claude-creds.json
 ```
 
 No container restart needed — the credentials file is bind-mounted live.
+
+> **Note:** Do not use the pipe form (`... -w | ssh ...`) — the shell interprets `ssh` as an argument to `security` rather than a separate command.
 
 ## Setting Up the Obsidian Vault
 
