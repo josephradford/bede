@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
-from bede_core.claude_cli import ClaudeResult
+from bede_core.agent_runner import AgentResult
 from bede_core.scheduler import TaskRunner, load_schedules
 
 
@@ -19,9 +19,7 @@ def data_client():
 @pytest.fixture
 def session_manager():
     sm = AsyncMock()
-    sm.send_task.return_value = ClaudeResult(
-        text="Task done!", session_id="task-sess-1"
-    )
+    sm.send_task.return_value = AgentResult(text="Task done!", session_id="task-sess-1")
     return sm
 
 
@@ -118,7 +116,7 @@ class TestTaskRunner:
             "timeout_seconds": 60,
             "interactive": False,
         }
-        session_manager.send_task.return_value = ClaudeResult(timed_out=True)
+        session_manager.send_task.return_value = AgentResult(timed_out=True)
         data_client.post.return_value = {"id": 1, "status": "running"}
         data_client.put.return_value = {"id": 1, "status": "timeout"}
 
@@ -199,7 +197,7 @@ class TestInteractiveHandoff:
             "timeout_seconds": 60,
             "interactive": True,
         }
-        session_manager.send_task.return_value = ClaudeResult(timed_out=True)
+        session_manager.send_task.return_value = AgentResult(timed_out=True)
         data_client.post.return_value = {"id": 1, "status": "running"}
         data_client.put.return_value = {"id": 1, "status": "timeout"}
 
@@ -278,8 +276,8 @@ class TestMultiStepTasks:
             quiet_hours_end=0,
         )
         session_manager.send_task.side_effect = [
-            ClaudeResult(text="Step 1 result", session_id="s1"),
-            ClaudeResult(text="Step 2 result", session_id="s2"),
+            AgentResult(text="Step 1 result", session_id="s1"),
+            AgentResult(text="Step 2 result", session_id="s2"),
         ]
         data_client.post.return_value = {"id": 1, "status": "running"}
         data_client.put.return_value = {"id": 1, "status": "success"}
@@ -310,7 +308,7 @@ class TestMultiStepTasks:
             quiet_hours_start=0,
             quiet_hours_end=0,
         )
-        session_manager.send_task.return_value = ClaudeResult(
+        session_manager.send_task.return_value = AgentResult(
             text="Result", session_id="s1"
         )
         data_client.post.return_value = {"id": 1, "status": "running"}
@@ -340,8 +338,8 @@ class TestMultiStepTasks:
             quiet_hours_end=0,
         )
         session_manager.send_task.side_effect = [
-            ClaudeResult(text="Visible result", session_id="s1"),
-            ClaudeResult(text="Silent result", session_id="s2"),
+            AgentResult(text="Visible result", session_id="s1"),
+            AgentResult(text="Silent result", session_id="s2"),
         ]
         data_client.post.return_value = {"id": 1, "status": "running"}
         data_client.put.return_value = {"id": 1, "status": "success"}
@@ -370,7 +368,7 @@ class TestMultiStepTasks:
             quiet_hours_start=0,
             quiet_hours_end=0,
         )
-        session_manager.send_task.return_value = ClaudeResult(
+        session_manager.send_task.return_value = AgentResult(
             text="Done", session_id="s1"
         )
         data_client.post.return_value = {"id": 1, "status": "running"}

@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from bede_core.claude_cli import ClaudeCli, ClaudeResult
+from bede_core.agent_runner import AgentResult, AgentRunner
 from bede_core.data_client import DataClient
 from bede_core.memory_manager import MemoryManager
 
@@ -15,7 +15,7 @@ class SessionManager:
     def __init__(
         self,
         data_client: DataClient,
-        claude_cli: ClaudeCli,
+        runner: AgentRunner,
         memory_manager: MemoryManager,
         timezone: str,
         model: str,
@@ -24,7 +24,7 @@ class SessionManager:
         interactive_max_age: float = 7200,
     ):
         self._data = data_client
-        self._cli = claude_cli
+        self._runner = runner
         self._memory = memory_manager
         self._tz = ZoneInfo(timezone)
         self._model = model
@@ -146,7 +146,7 @@ class SessionManager:
         message: str,
         model: str | None = None,
         timeout: int | None = None,
-    ) -> ClaudeResult:
+    ) -> AgentResult:
         import asyncio
 
         await asyncio.to_thread(self._pull_vault)
@@ -165,7 +165,7 @@ class SessionManager:
         else:
             prompt = await self._build_context(message, is_new_session=False)
 
-        result = await self._cli.run(
+        result = await self._runner.run(
             prompt=prompt,
             model=effective_model,
             session_id=session_id,
@@ -175,7 +175,7 @@ class SessionManager:
         if result.stale_session and session_id:
             log.warning("Stale session %s, retrying fresh.", session_id)
             prompt = await self._build_context(message, is_new_session=True)
-            result = await self._cli.run(
+            result = await self._runner.run(
                 prompt=prompt,
                 model=effective_model,
                 session_id=None,
@@ -200,7 +200,7 @@ class SessionManager:
         prompt: str,
         model: str | None = None,
         timeout: int | None = None,
-    ) -> ClaudeResult:
+    ) -> AgentResult:
         """Send a scheduled task prompt through the daily session."""
         return await self.send(prompt, model=model, timeout=timeout)
 
