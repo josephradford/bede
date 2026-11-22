@@ -11,6 +11,7 @@ from pydantic_ai.exceptions import (
     UsageLimitExceeded,
 )
 from pydantic_ai.mcp import MCPToolset
+from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.models import Model
 
 from bede_core.mcp_toolsets import connect_available
@@ -41,6 +42,7 @@ class AgentRunner:
         timeout: int = 300,
         max_steps: int = 15,
         retry_delay: float = 5.0,
+        default_model: str | Model | None = None,
     ):
         self._persona_path = persona_path
         self._tools = tools
@@ -48,6 +50,7 @@ class AgentRunner:
         self._timeout = timeout
         self._max_steps = max_steps
         self._retry_delay = retry_delay
+        self._default_model = default_model
 
     async def run(
         self,
@@ -58,6 +61,9 @@ class AgentRunner:
     ) -> AgentResult:
         """Run one task. session_id is accepted for interface compatibility and ignored."""
         effective_timeout = timeout or self._timeout
+        if isinstance(model, str) and ":" not in model and self._default_model:
+            log.warning("Model '%s' is not provider:name, using the default", model)
+            model = self._default_model
         try:
             persona = Path(self._persona_path).read_text(encoding="utf-8")
         except OSError as e:
@@ -72,10 +78,13 @@ class AgentRunner:
         limits = UsageLimits(request_limit=self._max_steps)
 
         for attempt in range(2):
+            run = None
             try:
                 async with asyncio.timeout(effective_timeout):
-                    run = await agent.run(prompt, usage_limits=limits)
-                return self._success(run, missing)
+                    async with agent.iter(prompt, usage_limits=limits) as run:
+                        async for _ in run:
+                            pass
+                return self._success(run.result, missing)
             except TimeoutError:
                 log.warning("Agent run timed out after %ss", effective_timeout)
                 return AgentResult(timed_out=True, tools_unavailable=missing)
@@ -97,7 +106,8 @@ class AgentRunner:
                         tools_unavailable=missing,
                     )
                 retryable = e.status_code == 429 or e.status_code >= 500
-                if retryable and attempt == 0:
+                # Retrying after a tool ran could repeat its side effects.
+                if retryable and attempt == 0 and not self._tool_ran(run):
                     log.warning("Provider error %d, retrying once", e.status_code)
                     await asyncio.sleep(self._retry_delay)
                     continue
@@ -122,6 +132,16 @@ class AgentRunner:
                     tools_unavailable=missing,
                 )
         raise AssertionError("unreachable")
+
+    @staticmethod
+    def _tool_ran(run) -> bool:
+        if run is None:
+            return False
+        return any(
+            isinstance(part, ToolCallPart)
+            for message in run.all_messages()
+            for part in message.parts
+        )
 
     def _success(self, run, missing: list[str]) -> AgentResult:
         text = str(run.output).strip()

@@ -70,6 +70,7 @@ def main():
         toolsets=build_toolsets(load_mcp_urls(settings.mcp_config_path)),
         timeout=settings.agent_timeout_seconds,
         max_steps=settings.max_agent_steps,
+        default_model=settings.model,
     )
 
     memory_manager = MemoryManager(data_client)

@@ -1,4 +1,5 @@
 import subprocess
+import threading
 from collections.abc import Callable
 from pathlib import Path
 
@@ -15,6 +16,11 @@ class Vault:
 
     def __init__(self, root: str):
         self._root = Path(root).resolve()
+        self._lock = threading.Lock()
+        self._pending: set[str] = (
+            set()
+        )  # paths written through write_file, not yet committed
+        self._unpushed = False  # a local commit exists that has not been pushed
 
     def _resolve(self, rel: str) -> Path:
         path = (self._root / rel).resolve()
@@ -49,6 +55,8 @@ class Vault:
             raise VaultError(f"Not a file path: {rel}")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
+        with self._lock:
+            self._pending.add(str(path.relative_to(self._root)))
         return f"Wrote {len(content)} chars to {rel}"
 
     def search(self, query: str, rel: str = ".") -> list[str]:
@@ -70,25 +78,40 @@ class Vault:
                         return hits
         return hits
 
-    def commit_and_push(self, message: str) -> str:
-        def git(*args: str) -> subprocess.CompletedProcess:
-            return subprocess.run(
-                ["git", "-C", str(self._root), *args],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
+    def _git(self, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["git", "-C", str(self._root), *args],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
 
-        git("add", "-A")
-        if not git("status", "--porcelain").stdout.strip():
-            return "Nothing to commit"
-        commit = git("commit", "-m", message)
-        if commit.returncode != 0:
-            raise VaultError(f"git commit failed: {commit.stderr.strip()}")
-        push = git("push")
-        if push.returncode != 0:
-            raise VaultError(f"git push failed: {push.stderr.strip()}")
-        return f"Committed and pushed: {message}"
+    def commit_and_push(self, message: str) -> str:
+        """Commit only the files written through this vault, then rebase and push."""
+        with self._lock:
+            if not self._pending and not self._unpushed:
+                return "Nothing to commit"
+            if self._pending:
+                paths = sorted(self._pending)
+                add = self._git("add", "--", *paths)
+                if add.returncode != 0:
+                    raise VaultError(f"git add failed: {add.stderr.strip()}")
+                if self._git("diff", "--cached", "--quiet").returncode != 0:
+                    commit = self._git("commit", "-m", message)
+                    if commit.returncode != 0:
+                        raise VaultError(f"git commit failed: {commit.stderr.strip()}")
+                    self._unpushed = True
+                self._pending.clear()
+            if self._git("rev-parse", "--abbrev-ref", "@{u}").returncode == 0:
+                pull = self._git("pull", "--rebase")
+                if pull.returncode != 0:
+                    self._git("rebase", "--abort")
+                    raise VaultError(f"git pull --rebase failed: {pull.stderr.strip()}")
+            push = self._git("push")
+            if push.returncode != 0:
+                raise VaultError(f"git push failed: {push.stderr.strip()}")
+            self._unpushed = False
+            return f"Committed and pushed: {message}"
 
 
 def build_vault_tools(vault: Vault) -> list[Callable]:

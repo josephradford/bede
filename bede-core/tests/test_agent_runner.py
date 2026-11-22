@@ -191,3 +191,32 @@ async def test_empty_model_output_is_reported(persona, vault):
     result = await make_runner(persona, vault).run("go", text_model(""))
     assert result.returncode == 1
     assert "did not return a usable answer" in result.text
+
+
+async def test_old_style_model_name_falls_back_to_default_model(persona, vault):
+    runner = AgentRunner(
+        persona,
+        build_vault_tools(vault),
+        {},
+        retry_delay=0,
+        default_model=text_model("from default"),
+    )
+    result = await runner.run("go", "sonnet")
+    assert result.text == "from default"
+
+
+async def test_provider_error_after_a_tool_ran_is_not_retried(persona, vault):
+    calls = []
+
+    def fn(messages, info):
+        calls.append(1)
+        if len(calls) == 1:
+            return ModelResponse(
+                parts=[ToolCallPart("write_file", {"path": "a.md", "content": "x"})]
+            )
+        raise ModelHTTPError(503, "m", None)
+
+    result = await make_runner(persona, vault).run("go", FunctionModel(fn))
+    assert "HTTP 503" in result.text
+    assert result.returncode == 1
+    assert len(calls) == 2
