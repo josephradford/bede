@@ -75,13 +75,16 @@ MCP. Toolsets are built from `mcp.json` using Pydantic AI's streamable-HTTP MCP
 client: `personal-data` and `google-workspace`. The `browser` entry is removed
 (its server is not part of the deployed services).
 
-Settings (`config.py`). Add `model`, `openrouter_api_key`, `max_agent_steps`.
-Rename the `claude_*` settings. A missing or invalid key fails at startup with a
-clear message.
+Settings (`config.py`). Add `model`, `persona_path`, `agent_timeout_seconds` and
+`max_agent_steps`, replacing the `claude_*` settings. `check_model_config()` runs at
+startup and fails with a clear message if `MODEL` is unset, is not `provider:name`, or
+the provider's key env var (for example `OPENROUTER_API_KEY`) is missing. Pydantic AI
+reads the provider key from the environment itself, so there is no key setting.
 
 Removed: Claude CLI install in the Dockerfile, the credentials mount and the
-README sync/re-auth steps, `auth_failure` handling in `bot.py`, and
-`claude_cli.py` itself once nothing imports it.
+README sync/re-auth steps, and `claude_cli.py`. `AgentResult` keeps `auth_failure`,
+which now means "the provider rejected the API key"; `bot.py` shows a key-rejected
+notice instead of the re-auth instructions.
 
 ### Data flow (scheduled run)
 
@@ -103,8 +106,11 @@ README sync/re-auth steps, `auth_failure` handling in `bot.py`, and
 - MCP server unreachable: run continues without those tools; the final message
   states which tools were unavailable so a briefing is never silently missing
   calendar data.
-- Tool errors (path escape, missing file) are returned to the model as tool
-  results so it can recover.
+- Tool errors (path escape, missing file, write failure) are returned to the model as
+  tool results so it can recover.
+- Missing persona file: failed result naming the file, no crash.
+- Model returns no usable answer (empty output): failed result suggesting a more
+  capable model.
 
 ### Testing
 
