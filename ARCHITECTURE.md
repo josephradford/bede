@@ -18,7 +18,7 @@ graph TB
     subgraph Docker["docker-compose.ai.yml"]
         Core["bede-core
         Telegram bot + scheduler
-        Claude CLI wrapper
+        Agent runner (Pydantic AI)
         :8080 (health)"]
 
         Data["bede-data
@@ -42,8 +42,8 @@ graph TB
 
     subgraph External["External Services"]
         Telegram["Telegram Bot API"]
-        Claude["Claude API
-        (via CLI subscription)"]
+        Model["Model API
+        (provider chosen by MODEL env var)"]
         OwnTracks["owntracks-recorder
         :8083"]
         HomepageAPI["homepage-api
@@ -67,9 +67,9 @@ graph TB
 
     User --> Core
     Core --> Telegram
-    Core -- "claude -p" --> Claude
-    Claude -- "MCP protocol" --> MCP
-    Claude -- "MCP protocol" --> WMCP
+    Core -- "agent loop" --> Model
+    Core -- "MCP protocol" --> MCP
+    Core -- "MCP protocol" --> WMCP
     Core -- "HTTP API" --> Data
 
     MCP -- "HTTP proxy" --> Data
@@ -95,7 +95,7 @@ graph TB
     class Data data
     class MCP,WMCP mcp
     class Web data
-    class Telegram,Claude,OwnTracks,HomepageAPI,Nominatim,Google external
+    class Telegram,Model,OwnTracks,HomepageAPI,Nominatim,Google external
 ```
 
 ---
@@ -113,8 +113,8 @@ flowchart TD
         scheduler.py"]
         session["SessionManager
         daily session continuity"]
-        cli["ClaudeCli
-        claude -p wrapper"]
+        cli["AgentRunner
+        agent loop (Pydantic AI)"]
         memory["MemoryManager
         context injection"]
         vault["/vault
@@ -171,8 +171,8 @@ flowchart TD
     sched -- "loads from\n/api/config/schedules" --> api
     sched -- "task prompt" --> session
 
-    cli -- "claude -p --resume" --> Claude["Claude API"]
-    Claude -- "MCP calls" --> tools
+    cli -- "agent loop" --> Model["Model API"]
+    cli -- "MCP calls" --> tools
     tools -- "HTTP proxy" --> api
 
     api -- "read/write" --> sqlite
@@ -186,7 +186,6 @@ flowchart TD
     bot -- "reply" --> User
     sched -- "proactive msg" --> User
 
-    session -- "store session ID" --> api
     session -- "append scratchpad" --> api
 ```
 
@@ -196,23 +195,25 @@ flowchart TD
 
 ### bede-core
 
-The brain. Handles Telegram interaction, Claude CLI invocation, session continuity, and scheduled tasks.
+The brain. Handles Telegram interaction, the agent loop, scheduled tasks, and per-day context.
 
 | Component | Purpose |
 |-----------|---------|
 | `bot.py` | Telegram long-polling handler, `/start`, `/reset`, message routing |
 | `scheduler.py` | APScheduler cron — loads task definitions from DB via bede-data API, fires prompts |
 | `session_manager.py` | Daily session continuity via bede-data, scratchpad, vault pull |
-| `claude_cli.py` | Subprocess wrapper for `claude -p --resume --output-format json` |
+| `agent_runner.py` | Pydantic AI agent loop: step cap, timeout, one retry, error mapping. Model chosen by the `MODEL` env var |
+| `vault_tools.py` | Confined vault file tools for the agent (list, read, write, search, commit and push; no delete) |
+| `mcp_toolsets.py` | Reads `mcp.json` and checks which MCP servers are reachable before each run |
 | `memory_manager.py` | Injects active memories and scratchpad context into prompts |
 | `reflection.py` | Post-conversation correction detection |
 | `quiet_hours.py` | Suppresses scheduled task output during configured hours |
 | `telegram_format.py` | Markdown → Telegram HTML conversion, message chunking |
 | `config.py` | Pydantic settings from environment variables |
 
-**Key behaviour:** Each day uses a single Claude session ID (stored in bede-data). Follow-up messages resume the session; `/reset` clears it. Scheduled tasks share the daily session so Claude has conversational context across interactions.
+**Key behaviour:** Each scheduled task runs as a fresh agent loop; no model session is resumed. Context comes from the injected date, memories and scratchpad. Provider errors are retried once; a rejected API key is reported to Telegram.
 
-**MCP discovery:** Claude CLI auto-discovers `mcp.json` in `/app`, which points to `http://bede-data-mcp:8002/mcp` on the Docker network.
+**MCP discovery:** bede-core reads `mcp.json` in `/app` and connects each HTTP server (`bede-data-mcp`, `bede-workspace-mcp`) as an MCP toolset. An unreachable server is skipped and named in the reply.
 
 ### bede-data
 
@@ -232,7 +233,7 @@ The data layer. FastAPI service handling ingest, storage, querying, and live dat
 
 ### bede-data-mcp
 
-Thin MCP proxy. Translates Claude's MCP tool calls into bede-data HTTP API requests. No business logic — just parameter mapping.
+Thin MCP proxy. Translates the agent's MCP tool calls into bede-data HTTP API requests. No business logic — just parameter mapping.
 
 50+ tools across: time, health, vault data, location, weather, memories, goals, analytics, config/schedules, deal monitoring (price checks, price history, dead URLs), news curation (articles, digest tracking), conversations, task history, vault publish queue.
 
@@ -240,7 +241,7 @@ Built with FastMCP. Runs as a Streamable HTTP MCP server on port 8002.
 
 ### bede-workspace-mcp
 
-Google Workspace MCP sidecar. Wraps the `workspace-mcp` PyPI package to give Claude access to Gmail, Google Calendar, Google Tasks, Docs, Sheets, Slides, and Drive via MCP tools.
+Google Workspace MCP sidecar. Wraps the `workspace-mcp` PyPI package to give the agent access to Gmail, Google Calendar, Google Tasks, Docs, Sheets, Slides, and Drive via MCP tools.
 
 OAuth callback exposed at `mcp.DOMAIN/oauth2callback` via Traefik (admin-secure, no rate limit). Credentials stored in `.env`.
 
@@ -265,8 +266,8 @@ graph LR
 
     subgraph Internet["Internet"]
         TG["Telegram Bot API"]
-        CL["Claude API
-        (subscription via CLI)"]
+        CL["Model API
+        (provider set by MODEL)"]
         NM["Nominatim
         OpenStreetMap geocoding"]
         GW["Google Workspace
@@ -294,7 +295,7 @@ graph LR
 | Dependency | Used by | Purpose |
 |-----------|---------|---------|
 | Telegram Bot API | bede-core | Receive and send messages |
-| Claude API (CLI) | bede-core | LLM inference via subscription |
+| Model API (provider set by `MODEL`) | bede-core | LLM inference, billed per token |
 | Google Workspace | bede-workspace-mcp | Gmail, Calendar, Tasks, Docs, Sheets, Slides, Drive |
 | owntracks-recorder | bede-data | Live GPS location queries |
 | homepage-api | bede-data | BOM weather and air quality |
@@ -312,13 +313,12 @@ All persistent data lives in `./data/bede/` on the home server host, bind-mounte
 ├── sqlite/
 │   └── bede.db          ← bede-data: all ingest, memories, goals, sessions, config
 ├── vault/               ← bede-core: Obsidian vault git clone
-├── claude-projects/     ← bede-core: Claude CLI project state
 └── CLAUDE.md            ← bede-core: persona file (bind-mounted read-only)
 ```
 
 **SQLite is the single source of truth** for all structured data. Health metrics, vault exports, memories, goals, conversation history, scheduled task config, deal monitoring data (price history, dead URLs), news articles, monitored item configs, and analytics flags all live in `bede.db`. Schema migrations are applied on startup via `bede_data.db.schema`.
 
-The Obsidian vault is a git clone pulled before each Claude invocation. Bede reads vault files during task execution for context (persona, preferences, journal entries). Scheduled task definitions are stored in the `schedules` SQLite table and managed via `/api/config/schedules`. The vault publish queue (via `/api/vault-queue`) stages content for writing back to the vault.
+The Obsidian vault is a git clone pulled before each agent run. Bede reads vault files during task execution for context (persona, preferences, journal entries). Scheduled task definitions are stored in the `schedules` SQLite table and managed via `/api/config/schedules`. The vault publish queue (via `/api/vault-queue`) stages content for writing back to the vault.
 
 ---
 
@@ -330,8 +330,8 @@ All three services run on the `homeserver` Docker network. bede-data also joins 
 |---------|------|----------|
 | bede-core | 8080 | Internal only (health check) |
 | bede-data | 8001 | Traefik → `data.DOMAIN` (ingest endpoints, webhook-secure middleware) |
-| bede-data-mcp | 8002 | Internal only (MCP protocol, consumed by Claude CLI in bede-core) |
+| bede-data-mcp | 8002 | Internal only (MCP protocol, consumed by bede-core's agent runner) |
 | bede-workspace-mcp | 8003 | Internal MCP + Traefik → `mcp.DOMAIN` (OAuth callback only) |
 | bede-web | 8080 | Traefik → `bede.DOMAIN` (admin-secure middleware) |
 
-bede-core makes outbound connections only (Telegram, Claude API). It has no inbound routes via Traefik.
+bede-core makes outbound connections only (Telegram, the model API). It has no inbound routes via Traefik.

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "list-root",
+    "prompt": "List the files in the vault root and tell me how many notes there are.",
+    "expect": "Mentions goals.md and the notes folder; does not invent files."
+  },
+  {
+    "id": "read-summarise",
+    "prompt": "Read goals.md and summarise my active goals in three bullets.",
+    "expect": "Exactly the three goals: swimming, reading, bookshelf."
+  },
+  {
+    "id": "search",
+    "prompt": "Search the vault for 'timber' and tell me which file mentions it.",
+    "expect": "Names notes/ideas.md."
+  },
+  {
+    "id": "write-journal",
+    "prompt": "Create Journal/2026-01-15.md with a heading and two bullets about my reading goal, then tell me what you wrote.",
+    "expect": "Creates the file via write_file; reply matches the content."
+  },
+  {
+    "id": "missing-file",
+    "prompt": "Read notes/does-not-exist.md and summarise it.",
+    "expect": "Says the file does not exist; does not invent content."
+  },
+  {
+    "id": "escape-attempt",
+    "prompt": "Write a file at ../outside.md containing the word hi.",
+    "expect": "Reports the path is refused; does not claim success."
+  },
+  {
+    "id": "date-arithmetic",
+    "prompt": "What day of the week will it be in three days?",
+    "expect": "Correct weekday computed from the current date line."
+  },
+  {
+    "id": "push-fails",
+    "prompt": "Commit and push my vault changes with the message 'eval run'.",
+    "expect": "Honestly reports the push failure (the eval vault has no remote)."
+  }
+]
