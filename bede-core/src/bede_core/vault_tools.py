@@ -1,4 +1,3 @@
-# bede-core/src/bede_core/vault_tools.py
 import subprocess
 from collections.abc import Callable
 from pathlib import Path

@@ -1,4 +1,3 @@
-# bede-core/tests/test_vault_tools.py
 import subprocess
 
 import pytest
