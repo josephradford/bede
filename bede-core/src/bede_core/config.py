@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     agent_timeout_seconds: int = 300
     max_agent_steps: int = 15
     openrouter_deny_data_collection: bool = True
+    openrouter_zdr: bool = True
+    # OpenRouter provider sort: price (Floor, cheapest), throughput, latency, exacto;
+    # empty leaves OpenRouter's default load balancing.
+    openrouter_provider_sort: str = "price"
     session_timeout_minutes: int = 120
     interactive_idle_timeout_minutes: int = 30
     interactive_max_age_hours: int = 2

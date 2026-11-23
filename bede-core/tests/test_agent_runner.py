@@ -233,7 +233,11 @@ async def test_denies_data_collection_by_default(persona, vault):
     result = await runner.run("hi", FunctionModel(fn))
 
     assert result.text == "ok"
-    assert seen["settings"]["openrouter_provider"] == {"data_collection": "deny"}
+    assert seen["settings"]["openrouter_provider"] == {
+        "data_collection": "deny",
+        "zdr": True,
+        "sort": "price",
+    }
 
 
 async def test_data_collection_policy_can_be_switched_off(persona, vault):
@@ -243,7 +247,38 @@ async def test_data_collection_policy_can_be_switched_off(persona, vault):
         seen["settings"] = info.model_settings
         return ModelResponse(parts=[TextPart("ok")])
 
-    runner = make_runner(persona, vault, deny_data_collection=False)
+    runner = make_runner(
+        persona, vault, deny_data_collection=False, zdr=False, provider_sort=""
+    )
     await runner.run("hi", FunctionModel(fn))
 
     assert "openrouter_provider" not in (seen["settings"] or {})
+
+
+async def test_zdr_can_be_switched_off_independently(persona, vault):
+    seen = {}
+
+    def fn(messages, info):
+        seen["settings"] = info.model_settings
+        return ModelResponse(parts=[TextPart("ok")])
+
+    runner = make_runner(persona, vault, zdr=False)
+    await runner.run("hi", FunctionModel(fn))
+
+    assert seen["settings"]["openrouter_provider"] == {
+        "data_collection": "deny",
+        "sort": "price",
+    }
+
+
+async def test_provider_sort_can_be_changed(persona, vault):
+    seen = {}
+
+    def fn(messages, info):
+        seen["settings"] = info.model_settings
+        return ModelResponse(parts=[TextPart("ok")])
+
+    runner = make_runner(persona, vault, provider_sort="latency")
+    await runner.run("hi", FunctionModel(fn))
+
+    assert seen["settings"]["openrouter_provider"]["sort"] == "latency"
