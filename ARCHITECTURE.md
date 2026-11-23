@@ -202,8 +202,9 @@ The brain. Handles Telegram interaction, the agent loop, scheduled tasks, and pe
 | `bot.py` | Telegram long-polling handler, `/start`, `/reset`, message routing |
 | `scheduler.py` | APScheduler cron — loads task definitions from DB via bede-data API, fires prompts |
 | `session_manager.py` | Daily session continuity via bede-data, scratchpad, vault pull |
-| `agent_runner.py` | Pydantic AI agent loop: step cap, timeout, one retry, error mapping. Model chosen by the `MODEL` env var |
-| `vault_tools.py` | Confined vault file tools for the agent (list, read, write, search, commit and push; no delete) |
+| `agent_runner.py` | Pydantic AI agent loop: step cap, timeout, one retry, error mapping. Model chosen by `MODEL` (`BEDE_MODEL` in home-server-stack). For OpenRouter it also sends the data-collection, ZDR and price-sort provider preferences |
+| `time_tools.py` | Deterministic date tools (`calculate_date`, `days_between`, `find_weekday`) so the model never does date arithmetic itself |
+| `vault_tools.py` | Confined vault file tools for the agent (list, read, write, search, commit and push; no delete). Reads are capped at 20,000 characters, search at 50 hits and 300 characters per hit, and files over 2 MB are skipped by search |
 | `mcp_toolsets.py` | Reads `mcp.json` and checks which MCP servers are reachable before each run |
 | `memory_manager.py` | Injects active memories and scratchpad context into prompts |
 | `reflection.py` | Post-conversation correction detection |

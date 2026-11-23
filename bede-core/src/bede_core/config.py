@@ -35,6 +35,17 @@ class Settings(BaseSettings):
     model_config = {"env_prefix": "", "case_sensitive": False}
 
 
+def check_telegram_config(token: str, allowed_user_id: int) -> None:
+    """Fail fast at startup if the Telegram bot token or allowed user is missing."""
+    if not token:
+        raise ValueError("TELEGRAM_BOT_TOKEN is not set (create a bot with @BotFather)")
+    if not allowed_user_id:
+        raise ValueError(
+            "ALLOWED_USER_ID is not set (your numeric Telegram user id, "
+            "from @userinfobot)"
+        )
+
+
 def check_model_config(model: str, environ: Mapping[str, str]) -> None:
     """Fail fast at startup if the model or its provider key is missing."""
     if not model:

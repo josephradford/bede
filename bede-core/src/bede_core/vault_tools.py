@@ -5,6 +5,8 @@ from pathlib import Path
 
 MAX_READ_CHARS = 20000
 MAX_SEARCH_RESULTS = 50
+MAX_SEARCH_FILE_BYTES = 2_000_000  # larger files are skipped by search
+MAX_SEARCH_LINE_CHARS = 300
 
 
 class VaultError(Exception):
@@ -44,7 +46,9 @@ class Vault:
         path = self._resolve(rel)
         if not path.is_file():
             raise VaultError(f"Not a file: {rel}")
-        text = path.read_text(encoding="utf-8", errors="replace")
+        # Read only what we may return, not the whole file.
+        with path.open(encoding="utf-8", errors="replace") as f:
+            text = f.read(MAX_READ_CHARS + 1)
         if len(text) > MAX_READ_CHARS:
             return text[:MAX_READ_CHARS] + f"\n[truncated at {MAX_READ_CHARS} chars]"
         return text
@@ -67,13 +71,18 @@ class Vault:
             if ".git" in path.relative_to(self._root).parts:
                 continue
             try:
+                if path.stat().st_size > MAX_SEARCH_FILE_BYTES:
+                    continue
                 lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
             except OSError:
                 continue
             for number, line in enumerate(lines, start=1):
                 if needle in line.lower():
                     where = path.relative_to(self._root)
-                    hits.append(f"{where}:{number}: {line.strip()}")
+                    text = line.strip()
+                    if len(text) > MAX_SEARCH_LINE_CHARS:
+                        text = text[:MAX_SEARCH_LINE_CHARS] + "..."
+                    hits.append(f"{where}:{number}: {text}")
                     if len(hits) >= MAX_SEARCH_RESULTS:
                         return hits
         return hits

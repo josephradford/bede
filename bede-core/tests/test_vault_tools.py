@@ -174,3 +174,30 @@ def test_failed_push_is_retried_on_the_next_call(tmp_path):
     git_out(work, "remote", "set-url", "origin", str(remote))
     assert "Committed" in v.commit_and_push("second try")
     assert "first try" in git_out(remote, "log", "--oneline")
+
+
+def test_search_truncates_very_long_lines(vault):
+    (vault._root / "long.md").write_text("needle " + "x" * 100_000 + "\n")
+    hits = vault.search("needle")
+    long_hit = next(h for h in hits if h.startswith("long.md"))
+    assert len(long_hit) < 1000
+    assert long_hit.endswith("...")
+
+
+def test_search_skips_oversized_files(vault):
+    from bede_core.vault_tools import MAX_SEARCH_FILE_BYTES
+
+    big = vault._root / "big.md"
+    big.write_text("needle\n" + "y" * (MAX_SEARCH_FILE_BYTES + 1))
+    hits = vault.search("needle")
+    assert not any(h.startswith("big.md") for h in hits)
+
+
+def test_read_of_a_huge_single_line_file_is_still_truncated(vault):
+    from bede_core.vault_tools import MAX_READ_CHARS
+
+    (vault._root / "huge.md").write_text("é" * (MAX_READ_CHARS * 5))
+    text = vault.read_file("huge.md")
+    assert text.startswith("é" * 10)
+    assert text.endswith(f"[truncated at {MAX_READ_CHARS} chars]")
+    assert len(text) < MAX_READ_CHARS + 100

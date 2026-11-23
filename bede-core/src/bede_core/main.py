@@ -14,7 +14,7 @@ from bede_core.bot import (
     create_task_trigger_handler,
 )
 from bede_core.agent_runner import AgentRunner
-from bede_core.config import Settings, check_model_config
+from bede_core.config import Settings, check_model_config, check_telegram_config
 from bede_core.data_client import DataClient
 from bede_core.mcp_toolsets import build_toolsets, load_mcp_urls
 from bede_core.memory_manager import MemoryManager
@@ -61,6 +61,7 @@ log = logging.getLogger(__name__)
 def main():
     settings = Settings()
     check_model_config(settings.model, os.environ)
+    check_telegram_config(settings.telegram_bot_token, settings.allowed_user_id)
     _start_health_server()
 
     data_client = DataClient(base_url=settings.bede_data_url)
