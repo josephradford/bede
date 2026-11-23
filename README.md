@@ -38,7 +38,7 @@ cp CLAUDE.md.example ~/home-server-stack/data/bede/CLAUDE.md
 **4. Start** (from the home-server-stack checkout on the server):
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d bede-data bede-core
-make logs-bede-core
+docker logs -f bede-core
 ```
 
 ## Day-to-day Commands
@@ -51,7 +51,7 @@ $AI up -d bede-data bede-core    # Start Bede
 $AI stop bede-core bede-data     # Stop
 $AI restart bede-core            # Restart after editing .env
 $AI ps                           # Container status
-make logs-bede-core              # Tail bede-core logs
+docker logs -f bede-core            # Tail bede-core logs
 $AI pull bede-core bede-data && $AI up -d bede-core bede-data   # Update to the latest images
 ```
 
