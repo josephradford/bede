@@ -32,6 +32,19 @@ jobs:
       - run: uv sync --extra dev
       - run: uv run pytest tests/ -v --tb=short
 
+  build:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./bede-core
+          push: false
+          platforms: linux/amd64
+          cache-from: type=gha
+
   build-push:
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: [lint, test]
