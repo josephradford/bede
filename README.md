@@ -12,44 +12,47 @@ Telegram bot and scheduled personal assistant, backed by any model API. Runs in 
 
 ### First-time setup
 
+Bede is deployed from `docker-compose.ai.yml` in [home-server-stack](https://github.com/josephradford/home-server-stack). The names below are the ones that compose file reads from the server's `.env`.
+
 **1. Add to `.env` on the server:**
 ```env
-TELEGRAM_BOT_TOKEN=your_token_here
-ALLOWED_USER_ID=your_numeric_id_here
+BEDE_TELEGRAM_BOT_TOKEN=your_token_here
+BEDE_ALLOWED_USER_ID=your_numeric_id_here
 VAULT_REPO=           # git URL for your Obsidian vault
 VAULT_SSH_KEY_PATH=   # host path to SSH key (leave blank for HTTPS PAT)
-SESSION_TIMEOUT_MINUTES=10
 ```
 
 **2. Choose a model and set its API key** (in the same `.env`):
 ```env
-MODEL=openrouter:<vendor>/<model>   # provider:name; edit this line to switch models
+BEDE_MODEL=openrouter:<vendor>/<model>   # provider:name; edit this line to switch models
 OPENROUTER_API_KEY=your_key_here
 ```
 Bede checks both at startup and exits with a clear message if either is missing. Set a monthly spend cap in the provider's console. `make bede-eval` runs a set of test prompts against the configured model.
 
-**3. Create your persona file** — `bede/CLAUDE.md` is gitignored (it's personal). Copy the example and fill in your details:
+**3. Create your persona file** — it is personal, so it is not in git. In home-server-stack, copy the example from this repo to `data/bede/CLAUDE.md` (mounted read-only at `/app/CLAUDE.md`; bede-core will not start without it) and fill in your details:
 ```bash
-cp bede/CLAUDE.md.example bede/CLAUDE.md
-# Edit bede/CLAUDE.md — set your name, location, timezone, role, interests
+cp CLAUDE.md.example ~/home-server-stack/data/bede/CLAUDE.md
+# Edit it: set your name, location, timezone and role
 ```
 
-**4. Build and start:**
+**4. Start** (from the home-server-stack checkout on the server):
 ```bash
-make bede-build
-make bede-start
-make logs-bede
+docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d bede-data bede-core
+docker logs -f bede-core
 ```
 
 ## Day-to-day Commands
 
+Run from the home-server-stack checkout on the server:
+
 ```bash
-make bede-start       # Start Bede services
-make bede-stop        # Stop all containers
-make bede-restart     # Restart all containers
-make bede-status      # Show container status
-make logs-bede        # Tail Bede logs
-make bede-build       # Rebuild after code changes, then make bede-start
+AI="docker compose -f docker-compose.yml -f docker-compose.ai.yml"
+$AI up -d bede-data bede-core    # Start Bede
+$AI stop bede-core bede-data     # Stop
+$AI restart bede-core            # Restart after editing .env
+$AI ps                           # Container status
+docker logs -f bede-core            # Tail bede-core logs
+$AI pull bede-core bede-data && $AI up -d bede-core bede-data   # Update to the latest images
 ```
 
 ## Telegram Commands
