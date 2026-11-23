@@ -19,11 +19,13 @@ from zoneinfo import ZoneInfo
 from bede_core.agent_runner import AgentRunner
 from bede_core.config import Settings, check_model_config
 from bede_core.mcp_toolsets import build_toolsets, load_mcp_urls
+from bede_core.time_tools import build_time_tools
 from bede_core.vault_tools import Vault, build_vault_tools
 
 HERE = Path(__file__).parent
 PERSONA = (
-    "You are Bede, a concise personal assistant. Your file tools work on the vault."
+    "You are Bede, a concise personal assistant. Your file tools work on the vault. "
+    "Use the date tools for any relative date; never work dates out yourself."
 )
 
 
@@ -46,7 +48,8 @@ async def main(use_mcp: bool) -> None:
         )
         runner = AgentRunner(
             persona_path=str(persona),
-            tools=build_vault_tools(Vault(str(vault_dir))),
+            tools=build_vault_tools(Vault(str(vault_dir)))
+            + build_time_tools(settings.timezone),
             toolsets=toolsets,
             timeout=settings.agent_timeout_seconds,
             max_steps=settings.max_agent_steps,
