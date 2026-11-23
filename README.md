@@ -27,7 +27,19 @@ VAULT_SSH_KEY_PATH=   # host path to SSH key (leave blank for HTTPS PAT)
 BEDE_MODEL=openrouter:<vendor>/<model>   # provider:name; edit this line to switch models
 OPENROUTER_API_KEY=your_key_here
 ```
-Bede checks both at startup and exits with a clear message if either is missing. Set a monthly spend cap in the provider's console. `make bede-eval` runs a set of test prompts against the configured model.
+Bede checks both at startup (and the Telegram token and user id) and exits with a clear message if any is missing. Set a monthly spend cap in the provider's console. `make bede-eval` runs a set of test prompts against a model; run it before switching `BEDE_MODEL`.
+
+Optional settings, all with defaults (set them in the same `.env`):
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `OPENROUTER_DENY_DATA_COLLECTION` | `true` | Only route to hosts that do not store or train on prompts |
+| `OPENROUTER_ZDR` | `true` | Only route to zero-data-retention endpoints (a model with none will error) |
+| `OPENROUTER_PROVIDER_SORT` | `price` | Cheapest host first ("Floor"); `latency`, `throughput`, `exacto`, or empty for OpenRouter's default |
+| `MAX_AGENT_STEPS` | `15` | Model calls allowed per run before it stops |
+| `AGENT_TIMEOUT_SECONDS` | `300` | Hard time limit per run |
+
+These variables only affect OpenRouter models; other providers ignore the three `OPENROUTER_*` settings.
 
 **3. Create your persona file** — it is personal, so it is not in git. In home-server-stack, copy the example from this repo to `data/bede/CLAUDE.md` (mounted read-only at `/app/CLAUDE.md`; bede-core will not start without it) and fill in your details:
 ```bash
@@ -103,11 +115,15 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed diagrams, data flows, and se
 
 ### "API key rejected" in Telegram, or bede-core exits at startup
 
-Check `MODEL` and the matching provider key (e.g. `OPENROUTER_API_KEY`) in `.env`, then restart bede-core. Startup errors name the missing variable.
+Check `BEDE_MODEL`, the matching provider key (e.g. `OPENROUTER_API_KEY`), `BEDE_TELEGRAM_BOT_TOKEN` and `BEDE_ALLOWED_USER_ID` in `.env`, then restart bede-core. Startup errors name the missing variable.
 
 ### "Stopped after N steps without a final answer"
 
 The model kept calling tools without finishing. Raise `MAX_AGENT_STEPS`, or try a more capable model (check it with `make bede-eval`).
+
+### Request errors after enabling ZDR or Floor
+
+A model with no zero-data-retention host fails outright rather than falling back. Set `OPENROUTER_ZDR=false` for that model, or pick another, and check it with `make bede-eval`.
 
 ### "Unavailable tools this run: ..."
 

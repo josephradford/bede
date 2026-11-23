@@ -78,3 +78,13 @@ def test_zdr_on_by_default():
 
 def test_provider_sort_defaults_to_cheapest():
     assert Settings().openrouter_provider_sort == "price"
+
+
+def test_telegram_config_requires_token_and_user_id():
+    from bede_core.config import check_telegram_config
+
+    with pytest.raises(ValueError, match="TELEGRAM_BOT_TOKEN"):
+        check_telegram_config("", 123)
+    with pytest.raises(ValueError, match="ALLOWED_USER_ID"):
+        check_telegram_config("abc:def", 0)
+    check_telegram_config("abc:def", 123)
