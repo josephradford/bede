@@ -10,13 +10,10 @@ from bede_core.telegram_format import md_to_html, chunk_text
 
 log = logging.getLogger(__name__)
 
-REAUTH_NOTICE = (
-    "⚠️ Claude auth has expired.\n\n"
-    "Run this from your Mac to re-authenticate:\n"
-    "```\n"
-    'security find-generic-password -s "Claude Code-credentials" -w | \\\n'
-    '  ssh user@SERVER_IP "cat > ~/.claude/.credentials.json"\n'
-    "```"
+KEY_REJECTED_NOTICE = (
+    "⚠️ The model API key was rejected.\n\n"
+    "Check the provider key in the server's .env (e.g. OPENROUTER_API_KEY), "
+    "then restart bede-core."
 )
 
 TYPING_MAX_DURATION = 600
@@ -84,7 +81,7 @@ def create_message_handler(
                 await data_client.post(
                     "/api/message-queue", body={"message": text, "source": "telegram"}
                 )
-            await update.message.reply_text(REAUTH_NOTICE, parse_mode="Markdown")
+            await update.message.reply_text(KEY_REJECTED_NOTICE)
             return
 
         response_text = result.text or "No response."

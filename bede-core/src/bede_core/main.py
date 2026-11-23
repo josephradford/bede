@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import time
 from functools import partial
 
@@ -12,14 +13,16 @@ from bede_core.bot import (
     create_start_handler,
     create_task_trigger_handler,
 )
-from bede_core.claude_cli import ClaudeCli
-from bede_core.config import Settings
+from bede_core.agent_runner import AgentRunner
+from bede_core.config import Settings, check_model_config
 from bede_core.data_client import DataClient
+from bede_core.mcp_toolsets import build_toolsets, load_mcp_urls
 from bede_core.memory_manager import MemoryManager
 from bede_core.reflection import append_correction
 from bede_core.scheduler import TaskRunner, reload_schedules, setup_scheduler
 from bede_core.session_manager import SessionManager
 from bede_core.telegram_format import md_to_html, chunk_text
+from bede_core.vault_tools import Vault, build_vault_tools
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
@@ -56,25 +59,28 @@ log = logging.getLogger(__name__)
 
 def main():
     settings = Settings()
+    check_model_config(settings.model, os.environ)
     _start_health_server()
 
     data_client = DataClient(base_url=settings.bede_data_url)
 
-    claude_cli = ClaudeCli(
-        workdir=settings.claude_workdir,
-        timeout=settings.claude_timeout_seconds,
-        filter_env_keys=["TELEGRAM_BOT_TOKEN", "ALLOWED_USER_ID", "INGEST_WRITE_TOKEN"],
-        mcp_config=settings.mcp_config_path,
+    runner = AgentRunner(
+        persona_path=settings.persona_path,
+        tools=build_vault_tools(Vault(settings.vault_path)),
+        toolsets=build_toolsets(load_mcp_urls(settings.mcp_config_path)),
+        timeout=settings.agent_timeout_seconds,
+        max_steps=settings.max_agent_steps,
+        default_model=settings.model,
     )
 
     memory_manager = MemoryManager(data_client)
 
     session_manager = SessionManager(
         data_client=data_client,
-        claude_cli=claude_cli,
+        runner=runner,
         memory_manager=memory_manager,
         timezone=settings.timezone,
-        model=settings.claude_model,
+        model=settings.model,
         vault_path=settings.vault_path,
         interactive_idle_timeout=settings.interactive_idle_timeout_minutes * 60,
         interactive_max_age=settings.interactive_max_age_hours * 3600,

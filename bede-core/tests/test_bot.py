@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from bede_core.claude_cli import ClaudeResult
+from bede_core.agent_runner import AgentResult
 
 
 class FakeUser:
@@ -66,7 +66,7 @@ class TestBotHandlers:
             session_manager, allowed_user_id=12345, timezone="Australia/Sydney"
         )
 
-        session_manager.send.return_value = ClaudeResult(
+        session_manager.send.return_value = AgentResult(
             text="Hi there!", session_id="s1"
         )
         update = FakeUpdate("hello", user_id=12345)
@@ -83,7 +83,7 @@ class TestBotHandlers:
             session_manager, allowed_user_id=12345, timezone="Australia/Sydney"
         )
 
-        session_manager.send.return_value = ClaudeResult(timed_out=True)
+        session_manager.send.return_value = AgentResult(timed_out=True)
         update = FakeUpdate("hello", user_id=12345)
         context = FakeContext()
         await handler(update, context)
@@ -98,13 +98,13 @@ class TestBotHandlers:
             session_manager, allowed_user_id=12345, timezone="Australia/Sydney"
         )
 
-        session_manager.send.return_value = ClaudeResult(auth_failure=True)
+        session_manager.send.return_value = AgentResult(auth_failure=True)
         update = FakeUpdate("hello", user_id=12345)
         context = FakeContext()
         await handler(update, context)
 
         calls = [str(c) for c in update.message.reply_text.call_args_list]
-        assert any("auth" in c.lower() or "expired" in c.lower() for c in calls)
+        assert any("api key" in c.lower() for c in calls)
 
 
 class TestResetHandler:
@@ -137,7 +137,7 @@ class TestInteractiveCorrections:
     async def test_appends_correction_during_interactive(self, session_manager):
         from bede_core.bot import create_message_handler
 
-        session_manager.send.return_value = ClaudeResult(text="Noted!", session_id="s1")
+        session_manager.send.return_value = AgentResult(text="Noted!", session_id="s1")
         session_manager.is_interactive = True
 
         correction_calls = []
@@ -162,7 +162,7 @@ class TestInteractiveCorrections:
     async def test_no_correction_when_not_interactive(self, session_manager):
         from bede_core.bot import create_message_handler
 
-        session_manager.send.return_value = ClaudeResult(text="Hello!", session_id="s1")
+        session_manager.send.return_value = AgentResult(text="Hello!", session_id="s1")
         session_manager.is_interactive = False
 
         correction_calls = []

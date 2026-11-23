@@ -14,6 +14,10 @@ if [ -f "/home/bede/.ssh/vault_key" ] && [ -s "/home/bede/.ssh/vault_key" ]; the
     export GIT_SSH_COMMAND="ssh -i /home/bede/.ssh/vault_key -o StrictHostKeyChecking=no"
 fi
 
+# Git identity for vault commits made by the agent's commit_and_push tool
+git config --global user.name "${GIT_AUTHOR_NAME:-Bede}"
+git config --global user.email "${GIT_AUTHOR_EMAIL:-bede@localhost}"
+
 # Pull Obsidian vault if VAULT_REPO is configured
 if [ -n "${VAULT_REPO}" ]; then
     if [ -d "/vault/.git" ]; then

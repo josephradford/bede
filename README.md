@@ -1,6 +1,6 @@
 # Bede — Personal AI Assistant
 
-Telegram bot wrapping Claude Code CLI. Runs in Docker on the home server.
+Telegram bot and scheduled personal assistant, backed by any model API. Runs in Docker on the home server.
 
 ## Quick Start
 
@@ -8,7 +8,7 @@ Telegram bot wrapping Claude Code CLI. Runs in Docker on the home server.
 
 1. **Telegram bot token** — create via [@BotFather](https://t.me/BotFather)
 2. **Your Telegram user ID** — message [@userinfobot](https://t.me/userinfobot)
-3. **Claude credentials on the server** — sync from Mac (see below)
+3. **A model API key** — for OpenRouter or another supported provider (see below)
 
 ### First-time setup
 
@@ -21,12 +21,12 @@ VAULT_SSH_KEY_PATH=   # host path to SSH key (leave blank for HTTPS PAT)
 SESSION_TIMEOUT_MINUTES=10
 ```
 
-**2. Sync Claude OAuth credentials from Mac to server:**
-```bash
-security find-generic-password -s "Claude Code-credentials" -w > /tmp/claude-creds.json
-scp /tmp/claude-creds.json user@SERVER_IP:~/.claude/.credentials.json
-rm /tmp/claude-creds.json
+**2. Choose a model and set its API key** (in the same `.env`):
+```env
+MODEL=openrouter:<vendor>/<model>   # provider:name; edit this line to switch models
+OPENROUTER_API_KEY=your_key_here
 ```
+Bede checks both at startup and exits with a clear message if either is missing. Set a monthly spend cap in the provider's console. `make bede-eval` runs a set of test prompts against the configured model.
 
 **3. Create your persona file** — `bede/CLAUDE.md` is gitignored (it's personal). Copy the example and fill in your details:
 ```bash
@@ -57,22 +57,6 @@ make bede-build       # Rebuild after code changes, then make bede-start
 - `/start` — greeting and available commands
 - `/reset` — clear the current session (start a fresh conversation)
 
-## Re-authenticating (when OAuth token expires)
-
-Claude Code refreshes tokens automatically — the credentials file is mounted read-write so it can write updated tokens back to the host. You should rarely need to re-authenticate manually.
-
-If Bede does stop responding with an auth error (e.g. after a very long gap), run from your Mac:
-
-```bash
-security find-generic-password -s "Claude Code-credentials" -w > /tmp/claude-creds.json
-scp /tmp/claude-creds.json user@SERVER_IP:~/.claude/.credentials.json
-rm /tmp/claude-creds.json
-```
-
-No container restart needed — the credentials file is bind-mounted live.
-
-> **Note:** Do not use the pipe form (`... -w | ssh ...`) — the shell interprets `ssh` as an argument to `security` rather than a separate command.
-
 ## Setting Up the Obsidian Vault
 
 ### HTTPS PAT (simpler)
@@ -97,13 +81,13 @@ Leave `VAULT_SSH_KEY_PATH` blank.
    VAULT_SSH_KEY_PATH=/home/user/.ssh/bede_vault_key
    ```
 
-The vault is cloned on container start and pulled before each Claude invocation.
+The vault is cloned on container start and pulled before each agent run.
 
 ## Architecture
 
 ```
 docker-compose.ai.yml
-├── bede-core           — Telegram bot + scheduler + session manager + Claude CLI
+├── bede-core           — Telegram bot + scheduler + session manager + agent runner (Pydantic AI)
 ├── bede-data           — FastAPI data layer + SQLite (port 8001)
 ├── bede-data-mcp       — MCP proxy to bede-data (port 8002)
 ├── bede-workspace-mcp  — Google Workspace MCP sidecar (port 8003)
@@ -114,20 +98,14 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed diagrams, data flows, and se
 
 ## Troubleshooting
 
-### "Credit balance is too low"
+### "API key rejected" in Telegram, or bede-core exits at startup
 
-The container is picking up `ANTHROPIC_API_KEY` from the shared `.env` instead of using OAuth.
-Check `docker-compose.ai.yml` has `ANTHROPIC_API_KEY=` (empty) in the environment block.
+Check `MODEL` and the matching provider key (e.g. `OPENROUTER_API_KEY`) in `.env`, then restart bede-core. Startup errors name the missing variable.
 
-### "--dangerously-skip-permissions cannot be used with root"
+### "Stopped after N steps without a final answer"
 
-The container is running as root. The Dockerfile must have `USER bede` before `ENTRYPOINT`.
+The model kept calling tools without finishing. Raise `MAX_AGENT_STEPS`, or try a more capable model (check it with `make bede-eval`).
 
-### "No conversation found with session ID: ..."
+### "Unavailable tools this run: ..."
 
-Stale session from a previous container run. Send `/reset` on Telegram to clear it.
-
-### Bede stops responding after weeks
-
-OAuth token has expired. Run the re-auth one-liner above from your Mac.
-
+An MCP server (e.g. google-workspace) was unreachable. Check its container, then re-run the task.

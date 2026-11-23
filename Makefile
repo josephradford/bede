@@ -1,4 +1,4 @@
-.PHONY: test test-core test-data test-data-mcp test-workspace-mcp test-web
+.PHONY: test test-core test-data test-data-mcp test-workspace-mcp test-web bede-eval
 
 test:
 	cd bede-core && uv run pytest tests/ -v
@@ -7,6 +7,9 @@ test:
 
 test-core:
 	cd bede-core && uv run pytest tests/ -v
+
+bede-eval:
+	cd bede-core && uv run python evals/run_evals.py $(ARGS)
 
 test-data:
 	cd bede-data && uv run pytest tests/ -v

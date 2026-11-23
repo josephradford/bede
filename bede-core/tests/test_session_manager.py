@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
-from bede_core.claude_cli import ClaudeResult
+from bede_core.agent_runner import AgentResult
 from bede_core.session_manager import SessionManager
 
 
@@ -17,7 +17,7 @@ def data_client():
 
 
 @pytest.fixture
-def claude_cli():
+def runner():
     return AsyncMock()
 
 
@@ -29,10 +29,10 @@ def memory_manager():
 
 
 @pytest.fixture
-def sm(data_client, claude_cli, memory_manager):
+def sm(data_client, runner, memory_manager):
     return SessionManager(
         data_client=data_client,
-        claude_cli=claude_cli,
+        runner=runner,
         memory_manager=memory_manager,
         timezone="Australia/Sydney",
         model="claude-sonnet-4-5-20250514",
@@ -41,14 +41,12 @@ def sm(data_client, claude_cli, memory_manager):
 
 
 class TestSessionManager:
-    async def test_send_creates_new_daily_session(self, sm, data_client, claude_cli):
+    async def test_send_creates_new_daily_session(self, sm, data_client, runner):
         data_client.get.return_value = {
             "error": "bede-data returned 404",
             "detail": "No session for this date",
         }
-        claude_cli.run.return_value = ClaudeResult(
-            text="Hello!", session_id="new-sess-1"
-        )
+        runner.run.return_value = AgentResult(text="Hello!", session_id="new-sess-1")
         data_client.post.return_value = {
             "date": "2026-05-01",
             "session_id": "new-sess-1",
@@ -57,38 +55,38 @@ class TestSessionManager:
         result = await sm.send("Hi there")
 
         assert result.text == "Hello!"
-        assert claude_cli.run.call_count == 1
-        call_kwargs = claude_cli.run.call_args
+        assert runner.run.call_count == 1
+        call_kwargs = runner.run.call_args
         assert (
             "--resume" not in str(call_kwargs)
             or call_kwargs.kwargs.get("session_id") is None
         )
 
-    async def test_send_resumes_existing_session(self, sm, data_client, claude_cli):
+    async def test_send_resumes_existing_session(self, sm, data_client, runner):
         data_client.get.return_value = {
             "date": "2026-05-01",
             "session_id": "existing-sess",
         }
-        claude_cli.run.return_value = ClaudeResult(
+        runner.run.return_value = AgentResult(
             text="Welcome back!", session_id="existing-sess"
         )
 
         result = await sm.send("What's up?")
 
         assert result.text == "Welcome back!"
-        call_kwargs = claude_cli.run.call_args
+        call_kwargs = runner.run.call_args
         assert call_kwargs.kwargs.get(
             "session_id"
         ) == "existing-sess" or "existing-sess" in str(call_kwargs)
 
-    async def test_send_retries_on_stale_session(self, sm, data_client, claude_cli):
+    async def test_send_retries_on_stale_session(self, sm, data_client, runner):
         data_client.get.return_value = {
             "date": "2026-05-01",
             "session_id": "stale-sess",
         }
-        stale_result = ClaudeResult(stale_session=True, stderr="no conversation found")
-        fresh_result = ClaudeResult(text="Fresh start!", session_id="new-sess-2")
-        claude_cli.run.side_effect = [stale_result, fresh_result]
+        stale_result = AgentResult(stale_session=True, stderr="no conversation found")
+        fresh_result = AgentResult(text="Fresh start!", session_id="new-sess-2")
+        runner.run.side_effect = [stale_result, fresh_result]
         data_client.post.return_value = {
             "date": "2026-05-01",
             "session_id": "new-sess-2",
@@ -97,56 +95,56 @@ class TestSessionManager:
         result = await sm.send("Hello again")
 
         assert result.text == "Fresh start!"
-        assert claude_cli.run.call_count == 2
+        assert runner.run.call_count == 2
 
     async def test_send_injects_memory_context(
-        self, sm, data_client, claude_cli, memory_manager
+        self, sm, data_client, runner, memory_manager
     ):
         data_client.get.return_value = {
             "error": "bede-data returned 404",
             "detail": "No session",
         }
         memory_manager.get_context.return_value = "## Memories\n- Training for marathon"
-        claude_cli.run.return_value = ClaudeResult(text="Got it!", session_id="s1")
+        runner.run.return_value = AgentResult(text="Got it!", session_id="s1")
         data_client.post.return_value = {"date": "2026-05-01", "session_id": "s1"}
 
         await sm.send("Hi")
 
         prompt = (
-            claude_cli.run.call_args.args[0]
-            if claude_cli.run.call_args.args
-            else claude_cli.run.call_args.kwargs.get("prompt", "")
+            runner.run.call_args.args[0]
+            if runner.run.call_args.args
+            else runner.run.call_args.kwargs.get("prompt", "")
         )
         assert "marathon" in prompt or memory_manager.get_context.called
 
-    async def test_send_handles_timeout(self, sm, data_client, claude_cli):
+    async def test_send_handles_timeout(self, sm, data_client, runner):
         data_client.get.return_value = {
             "error": "bede-data returned 404",
             "detail": "No session",
         }
-        claude_cli.run.return_value = ClaudeResult(timed_out=True)
+        runner.run.return_value = AgentResult(timed_out=True)
 
         result = await sm.send("Hello")
 
         assert result.timed_out is True
 
-    async def test_send_detects_auth_failure(self, sm, data_client, claude_cli):
+    async def test_send_detects_auth_failure(self, sm, data_client, runner):
         data_client.get.return_value = {
             "error": "bede-data returned 404",
             "detail": "No session",
         }
-        claude_cli.run.return_value = ClaudeResult(auth_failure=True)
+        runner.run.return_value = AgentResult(auth_failure=True)
 
         result = await sm.send("Hello")
 
         assert result.auth_failure is True
 
-    async def test_send_populates_scratchpad(self, sm, data_client, claude_cli):
+    async def test_send_populates_scratchpad(self, sm, data_client, runner):
         data_client.get.return_value = {
             "error": "bede-data returned 404",
             "detail": "No session",
         }
-        claude_cli.run.return_value = ClaudeResult(text="Got it!", session_id="s1")
+        runner.run.return_value = AgentResult(text="Got it!", session_id="s1")
         data_client.post.return_value = {"date": "2026-05-01", "session_id": "s1"}
 
         await sm.send("Remember this")
@@ -160,12 +158,12 @@ class TestSessionManager:
         body = scratchpad_calls[0].kwargs.get("body", {})
         assert "Remember this" in body.get("content", "")
 
-    async def test_send_skips_scratchpad_on_timeout(self, sm, data_client, claude_cli):
+    async def test_send_skips_scratchpad_on_timeout(self, sm, data_client, runner):
         data_client.get.return_value = {
             "error": "bede-data returned 404",
             "detail": "No session",
         }
-        claude_cli.run.return_value = ClaudeResult(timed_out=True)
+        runner.run.return_value = AgentResult(timed_out=True)
 
         await sm.send("Hello")
 
@@ -178,38 +176,34 @@ class TestSessionManager:
 
 
 class TestInteractiveSession:
-    async def test_register_interactive_overrides_model(
-        self, sm, data_client, claude_cli
-    ):
+    async def test_register_interactive_overrides_model(self, sm, data_client, runner):
         data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
-        claude_cli.run.return_value = ClaudeResult(text="Reply!", session_id="sess-1")
+        runner.run.return_value = AgentResult(text="Reply!", session_id="sess-1")
 
         sm.register_interactive("claude-sonnet-4-5-20250514")
         await sm.send("Hello")
 
-        call_kwargs = claude_cli.run.call_args.kwargs
+        call_kwargs = runner.run.call_args.kwargs
         assert call_kwargs["model"] == "claude-sonnet-4-5-20250514"
 
-    async def test_interactive_refreshes_idle_on_send(
-        self, sm, data_client, claude_cli
-    ):
+    async def test_interactive_refreshes_idle_on_send(self, sm, data_client, runner):
         data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
-        claude_cli.run.return_value = ClaudeResult(text="Reply!", session_id="sess-1")
+        runner.run.return_value = AgentResult(text="Reply!", session_id="sess-1")
 
         sm.register_interactive("claude-sonnet-4-5-20250514")
         await sm.send("Message 1")
         await sm.send("Message 2")
 
-        assert claude_cli.run.call_count == 2
-        for call in claude_cli.run.call_args_list:
+        assert runner.run.call_count == 2
+        for call in runner.run.call_args_list:
             assert call.kwargs["model"] == "claude-sonnet-4-5-20250514"
 
     async def test_interactive_expires_after_idle_timeout(
-        self, data_client, claude_cli, memory_manager
+        self, data_client, runner, memory_manager
     ):
         sm = SessionManager(
             data_client=data_client,
-            claude_cli=claude_cli,
+            runner=runner,
             memory_manager=memory_manager,
             timezone="Australia/Sydney",
             model="claude-haiku-4-5-20251001",
@@ -218,21 +212,21 @@ class TestInteractiveSession:
             interactive_max_age=3600,
         )
         data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
-        claude_cli.run.return_value = ClaudeResult(text="Reply!", session_id="sess-1")
+        runner.run.return_value = AgentResult(text="Reply!", session_id="sess-1")
 
         sm.register_interactive("claude-sonnet-4-5-20250514")
         time.sleep(0.02)
         await sm.send("Hello")
 
-        call_kwargs = claude_cli.run.call_args.kwargs
+        call_kwargs = runner.run.call_args.kwargs
         assert call_kwargs["model"] == "claude-haiku-4-5-20251001"
 
     async def test_interactive_expires_after_max_age(
-        self, data_client, claude_cli, memory_manager
+        self, data_client, runner, memory_manager
     ):
         sm = SessionManager(
             data_client=data_client,
-            claude_cli=claude_cli,
+            runner=runner,
             memory_manager=memory_manager,
             timezone="Australia/Sydney",
             model="claude-haiku-4-5-20251001",
@@ -241,24 +235,24 @@ class TestInteractiveSession:
             interactive_max_age=0.01,
         )
         data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
-        claude_cli.run.return_value = ClaudeResult(text="Reply!", session_id="sess-1")
+        runner.run.return_value = AgentResult(text="Reply!", session_id="sess-1")
 
         sm.register_interactive("claude-sonnet-4-5-20250514")
         time.sleep(0.02)
         await sm.send("Hello")
 
-        call_kwargs = claude_cli.run.call_args.kwargs
+        call_kwargs = runner.run.call_args.kwargs
         assert call_kwargs["model"] == "claude-haiku-4-5-20251001"
 
-    async def test_clear_interactive(self, sm, data_client, claude_cli):
+    async def test_clear_interactive(self, sm, data_client, runner):
         data_client.get.return_value = {"date": "2026-05-01", "session_id": "sess-1"}
-        claude_cli.run.return_value = ClaudeResult(text="Reply!", session_id="sess-1")
+        runner.run.return_value = AgentResult(text="Reply!", session_id="sess-1")
 
         sm.register_interactive("claude-sonnet-4-5-20250514")
         sm.clear_interactive()
         await sm.send("Hello")
 
-        call_kwargs = claude_cli.run.call_args.kwargs
+        call_kwargs = runner.run.call_args.kwargs
         assert call_kwargs["model"] == "claude-sonnet-4-5-20250514"
 
     def test_is_interactive(self, sm):
