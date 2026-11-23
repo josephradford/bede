@@ -13,6 +13,7 @@ from pydantic_ai.exceptions import (
 from pydantic_ai.mcp import MCPToolset
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.models import Model
+from pydantic_ai.models.openrouter import OpenRouterModelSettings
 
 from bede_core.mcp_toolsets import connect_available
 
@@ -43,6 +44,7 @@ class AgentRunner:
         max_steps: int = 15,
         retry_delay: float = 5.0,
         default_model: str | Model | None = None,
+        deny_data_collection: bool = True,
     ):
         self._persona_path = persona_path
         self._tools = tools
@@ -51,6 +53,16 @@ class AgentRunner:
         self._max_steps = max_steps
         self._retry_delay = retry_delay
         self._default_model = default_model
+        self._deny_data_collection = deny_data_collection
+
+    def _model_settings(self) -> OpenRouterModelSettings | None:
+        """Ask OpenRouter to route only to hosts that don't store or train on prompts.
+
+        The openrouter_-prefixed keys are ignored by every other provider.
+        """
+        if not self._deny_data_collection:
+            return None
+        return OpenRouterModelSettings(openrouter_provider={"data_collection": "deny"})
 
     async def run(
         self,
@@ -74,6 +86,7 @@ class AgentRunner:
             system_prompt=persona,
             tools=self._tools,
             toolsets=reachable,
+            model_settings=self._model_settings(),
         )
         limits = UsageLimits(request_limit=self._max_steps)
 

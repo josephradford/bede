@@ -71,6 +71,7 @@ def main():
         timeout=settings.agent_timeout_seconds,
         max_steps=settings.max_agent_steps,
         default_model=settings.model,
+        deny_data_collection=settings.openrouter_deny_data_collection,
     )
 
     memory_manager = MemoryManager(data_client)

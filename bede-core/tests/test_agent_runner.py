@@ -220,3 +220,30 @@ async def test_provider_error_after_a_tool_ran_is_not_retried(persona, vault):
     assert "HTTP 503" in result.text
     assert result.returncode == 1
     assert len(calls) == 2
+
+
+async def test_denies_data_collection_by_default(persona, vault):
+    seen = {}
+
+    def fn(messages, info):
+        seen["settings"] = info.model_settings
+        return ModelResponse(parts=[TextPart("ok")])
+
+    runner = make_runner(persona, vault)
+    result = await runner.run("hi", FunctionModel(fn))
+
+    assert result.text == "ok"
+    assert seen["settings"]["openrouter_provider"] == {"data_collection": "deny"}
+
+
+async def test_data_collection_policy_can_be_switched_off(persona, vault):
+    seen = {}
+
+    def fn(messages, info):
+        seen["settings"] = info.model_settings
+        return ModelResponse(parts=[TextPart("ok")])
+
+    runner = make_runner(persona, vault, deny_data_collection=False)
+    await runner.run("hi", FunctionModel(fn))
+
+    assert "openrouter_provider" not in (seen["settings"] or {})

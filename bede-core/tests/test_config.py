@@ -66,3 +66,7 @@ class TestCheckModelConfig:
 
     def test_unknown_provider_is_not_checked(self):
         check_model_config("somevendor:m", {})
+
+
+def test_data_collection_denied_by_default():
+    assert Settings().openrouter_deny_data_collection is True
