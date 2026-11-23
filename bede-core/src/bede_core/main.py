@@ -22,6 +22,7 @@ from bede_core.reflection import append_correction
 from bede_core.scheduler import TaskRunner, reload_schedules, setup_scheduler
 from bede_core.session_manager import SessionManager
 from bede_core.telegram_format import md_to_html, chunk_text
+from bede_core.time_tools import build_time_tools
 from bede_core.vault_tools import Vault, build_vault_tools
 
 logging.basicConfig(
@@ -66,7 +67,8 @@ def main():
 
     runner = AgentRunner(
         persona_path=settings.persona_path,
-        tools=build_vault_tools(Vault(settings.vault_path)),
+        tools=build_vault_tools(Vault(settings.vault_path))
+        + build_time_tools(settings.timezone),
         toolsets=build_toolsets(load_mcp_urls(settings.mcp_config_path)),
         timeout=settings.agent_timeout_seconds,
         max_steps=settings.max_agent_steps,
