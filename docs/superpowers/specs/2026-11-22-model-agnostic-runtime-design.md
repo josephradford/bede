@@ -1,6 +1,8 @@
 # Model-agnostic agent runtime for bede-core
 
-Status: design approved in conversation, awaiting written-spec review.
+Status: implemented and merged (bede PRs #82 to #88); first server deployment in
+progress as of 2026-11-23 (`bede-data` running, `bede-core` not yet started).
+See "As built" for changes since the design was approved.
 Scope: sub-project 1 of 4 (see Decomposition).
 
 ## Background and goal
@@ -135,10 +137,45 @@ notice instead of the re-auth instructions.
 - Keep `bede-data` and `bede-core`'s existing plumbing (approach A): lowest
   risk, and items 3 and 4 need `bede-data` regardless.
 
+## As built (changes since approval)
+
+Recorded 2026-11-23. The design above stands; these were added or settled during
+build and first deployment.
+
+- **Date tools.** `time_tools.py` adds `calculate_date`, `days_between` and
+  `find_weekday`, in-process and deterministic, so a cheap model never does
+  relative-date arithmetic itself (month-end clamping, leap years, "last
+  Tuesday"). The persona tells the model to use them. No MCP dependency.
+- **Privacy and cost routing (OpenRouter).** Every request sends
+  `data_collection: deny`, `zdr: true` (zero-data-retention endpoints only) and
+  `sort: price` ("Floor", cheapest first). Settings: `OPENROUTER_DENY_DATA_COLLECTION`,
+  `OPENROUTER_ZDR`, `OPENROUTER_PROVIDER_SORT`, all defaulting on. A model with no
+  ZDR host errors rather than falling back, so vet with `make bede-eval` before
+  switching. OpenRouter has no Australian region (EU and US only, on paid plans);
+  Bedrock or Vertex in a Sydney region via BYOK is the route if residency is required.
+- **Startup checks.** `check_telegram_config` fails fast if the bot token or allowed
+  user id is missing, alongside `check_model_config`.
+- **Tool caps.** `read_file` reads at most 20,000 characters, `search` returns at
+  most 50 hits of 300 characters and skips files over 2 MB.
+- **Deployment.** `docker-compose.ai.yml` in home-server-stack runs `bede-init`
+  (one-shot chown of `data/bede` to uid 1000), `bede-data` and `bede-core`. No
+  Traefik route. Host env names are `BEDE_`-prefixed where they would clash
+  (`BEDE_MODEL`, `BEDE_TELEGRAM_BOT_TOKEN`, `BEDE_ALLOWED_USER_ID`).
+- **Eval set.** 12 prompts (8 vault and error-handling, 4 harder date prompts).
+- **Sub-project status.** Item 2 (minimal `bede-data` redeploy) is done. Items 3
+  and 4 are not started.
+
 ## Open items
 
-- Choose the default model after running the eval set (candidate small-tier
-  models are compared at that point; prices and model names change often).
-- Confirm the `max_agent_steps` default (starting guess: 15) against the
-  morning-briefing eval.
-- Set a hard monthly spend cap with OpenRouter before first deployment.
+- Default model: settled 2026-11-23 as `deepseek/deepseek-v4.1-flash` (8/8 on the
+  eval, also under ZDR and Floor), fallback `anthropic/claude-haiku-5.5`.
+  `openai/gpt-5-nano` is ruled out (invented content, made an unrequested write).
+  One run per model, so this is a screening result. Revisit as prices and model
+  names change.
+- `max_agent_steps` stays at 15: no eval prompt needed more than 5 steps. Still to
+  confirm against a real morning briefing.
+- Set a hard monthly spend cap with OpenRouter before the first scheduled run.
+  (The user's task; not yet confirmed done.)
+- Create the morning-briefing schedule in `bede-data` (the schedules list is
+  empty, so nothing fires), and provide the vault deploy key (the server has no
+  SSH keypair).
