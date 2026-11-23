@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     persona_path: str = "/app/CLAUDE.md"
     agent_timeout_seconds: int = 300
     max_agent_steps: int = 15
+    openrouter_deny_data_collection: bool = True
     session_timeout_minutes: int = 120
     interactive_idle_timeout_minutes: int = 30
     interactive_max_age_hours: int = 2
