@@ -72,6 +72,8 @@ def main():
         max_steps=settings.max_agent_steps,
         default_model=settings.model,
         deny_data_collection=settings.openrouter_deny_data_collection,
+        zdr=settings.openrouter_zdr,
+        provider_sort=settings.openrouter_provider_sort,
     )
 
     memory_manager = MemoryManager(data_client)

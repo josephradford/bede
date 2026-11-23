@@ -70,3 +70,11 @@ class TestCheckModelConfig:
 
 def test_data_collection_denied_by_default():
     assert Settings().openrouter_deny_data_collection is True
+
+
+def test_zdr_on_by_default():
+    assert Settings().openrouter_zdr is True
+
+
+def test_provider_sort_defaults_to_cheapest():
+    assert Settings().openrouter_provider_sort == "price"
