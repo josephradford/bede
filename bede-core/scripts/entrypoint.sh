@@ -9,7 +9,9 @@ fi
 
 # Configure SSH key for private vault repos
 if [ -f "/home/bede/.ssh/vault_key" ] && [ -s "/home/bede/.ssh/vault_key" ]; then
-    chmod 600 /home/bede/.ssh/vault_key
+    # The key is bind-mounted read-only, so chmod always fails there; the host
+    # file is expected to be mode 600 already. Don't let that abort startup.
+    chmod 600 /home/bede/.ssh/vault_key 2>/dev/null || true
     ssh-keyscan github.com gitlab.com bitbucket.org >> /home/bede/.ssh/known_hosts 2>/dev/null || true
     export GIT_SSH_COMMAND="ssh -i /home/bede/.ssh/vault_key -o StrictHostKeyChecking=no"
 fi
